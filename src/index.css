@@ -1,30 +1,24 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* VELOX renklerine yakın hibrit tema */
-  --topbar-bg:   #1a1f1a;
-  --topbar-text: #e8f5e9;
-  --green:       #4caf50;
-  --green-dark:  #2e7d32;
-  --green-light: #81c784;
-  --red:         #c62828;
-  --red-light:   #ef9a9a;
-  --bg-canvas:   #1a1a1a;
-  --bg-panel:    #f0f2f0;
-  --bg-white:    #ffffff;
-  --bg-row-alt:  #f5f7f5;
-  --border:      #d0d7d0;
-  --border-dark: #b0bab0;
-  --text-dark:   #1a2a1a;
-  --text-mid:    #445544;
-  --text-light:  #778877;
-  --selected-bg: #e8f5e9;
+  --green:      #3d8b40;
+  --green-dark: #2e7d32;
+  --green-bg:   #e8f5e9;
+  --red:        #c62828;
+  --border:     #c8d0c8;
+  --bg:         #eef0ee;
+  --panel:      #ffffff;
+  --text:       #1a2a1a;
+  --text-mid:   #4a5a4a;
+  --text-muted: #7a8a7a;
 }
 
 body {
-  font-family: 'Segoe UI', Arial, sans-serif;
-  background: var(--bg-panel);
-  color: var(--text-dark);
+  /* Kullanıcının istediği sade, okunabilir font */
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--text);
   overflow: hidden;
   height: 100vh;
 }
@@ -32,11 +26,9 @@ body {
 button { cursor: pointer; font-family: inherit; }
 input, textarea, select { font-family: inherit; outline: none; }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #e8ebe8; }
-::-webkit-scrollbar-thumb { background: #aabcaa; border-radius: 3px; }
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: #e0e5e0; }
+::-webkit-scrollbar-thumb { background: #b0bcb0; border-radius: 3px; }
 
-.pass-badge { color: #2e7d32; font-weight: 700; }
-.fail-badge { color: #c62828; font-weight: 700; }
-.row-pass   { background: #f1f8f1; }
-.row-fail   { background: #fff3f3; }
+.row-pass { background: #f2f9f2; }
+.row-fail { background: #fff4f4; }
