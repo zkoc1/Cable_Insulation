@@ -1,47 +1,42 @@
-/* ─── Global Reset & Design Tokens ─── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg-base:       #0a0c0f;
-  --bg-panel:      #111318;
-  --bg-card:       #181c23;
-  --bg-hover:      #1e2330;
-  --border:        #262d3a;
-  --border-bright: #3a4455;
-  --green:         #4ade80;
-  --green-dim:     #22c55e;
-  --green-dark:    #052e16;
-  --blue:          #38bdf8;
-  --red:           #f43f5e;
-  --red-dark:      #4c0519;
-  --yellow:        #facc15;
-  --text-1:        #f1f5f9;
-  --text-2:        #94a3b8;
-  --text-3:        #475569;
-  --font:          'Inter', system-ui, sans-serif;
+  /* VELOX renklerine yakın hibrit tema */
+  --topbar-bg:   #1a1f1a;
+  --topbar-text: #e8f5e9;
+  --green:       #4caf50;
+  --green-dark:  #2e7d32;
+  --green-light: #81c784;
+  --red:         #c62828;
+  --red-light:   #ef9a9a;
+  --bg-canvas:   #1a1a1a;
+  --bg-panel:    #f0f2f0;
+  --bg-white:    #ffffff;
+  --bg-row-alt:  #f5f7f5;
+  --border:      #d0d7d0;
+  --border-dark: #b0bab0;
+  --text-dark:   #1a2a1a;
+  --text-mid:    #445544;
+  --text-light:  #778877;
+  --selected-bg: #e8f5e9;
 }
 
 body {
-  font-family: var(--font);
-  background: var(--bg-base);
-  color: var(--text-1);
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: var(--bg-panel);
+  color: var(--text-dark);
   overflow: hidden;
-  user-select: none;
+  height: 100vh;
 }
 
-button { cursor: pointer; font-family: var(--font); }
-input, textarea { font-family: var(--font); outline: none; }
-input::placeholder, textarea::placeholder { color: var(--text-3); }
+button { cursor: pointer; font-family: inherit; }
+input, textarea, select { font-family: inherit; outline: none; }
 
-/* scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--bg-panel); }
-::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #e8ebe8; }
+::-webkit-scrollbar-thumb { background: #aabcaa; border-radius: 3px; }
 
-/* table rows pass / fail */
-.row-pass { background: rgba(34,197,94,0.07); }
-.row-fail { background: rgba(244,63,94,0.12); }
-
-/* badge */
-.badge-pass { color: var(--green); font-weight: 700; }
-.badge-fail { color: var(--red);   font-weight: 700; }
+.pass-badge { color: #2e7d32; font-weight: 700; }
+.fail-badge { color: #c62828; font-weight: 700; }
+.row-pass   { background: #f1f8f1; }
+.row-fail   { background: #fff3f3; }

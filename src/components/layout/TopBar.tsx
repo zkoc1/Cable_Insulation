@@ -8,89 +8,71 @@ export const TopBar: React.FC = () => {
 
   return (
     <div style={{
-      height: 60,
-      background: '#0d1117',
-      borderBottom: '1px solid #1e2330',
+      height: 62,
+      background: 'linear-gradient(90deg, #1a1f1a 0%, #243024 100%)',
       display: 'flex',
       alignItems: 'center',
-      padding: '0 18px',
-      gap: 16,
+      padding: '0 14px',
+      gap: 14,
+      borderBottom: '3px solid #4caf50',
+      flexShrink: 0,
     }}>
-      {/* brand */}
-      <div style={{ display:'flex', alignItems:'center', gap:10, marginRight:8 }}>
+      {/* Logo */}
+      <div style={{ display:'flex', alignItems:'center', gap:10, paddingRight:14, borderRight:'1px solid #3a4a3a' }}>
         <div style={{
-          width:36, height:36, borderRadius:8,
-          background:'linear-gradient(135deg,#4ade80,#16a34a)',
+          width:40, height:40, borderRadius:'50%',
+          background:'#4caf50',
           display:'flex', alignItems:'center', justifyContent:'center',
-          fontWeight:900, fontSize:18, color:'#051007',
+          fontWeight:900, fontSize:22, color:'#1a1f1a',
         }}>V</div>
         <div>
-          <div style={{ fontWeight:800, fontSize:14, color:'#f1f5f9', lineHeight:1.2 }}>{t.appTitle}</div>
-          <div style={{ fontSize:10, color:'#475569' }}>Quality Control System v1.0</div>
+          <div style={{ color:'#e8f5e9', fontWeight:700, fontSize:13, letterSpacing:.5 }}>VisioCablePro</div>
+          <div style={{ color:'#81c784', fontSize:10 }}>Kablo İzolasyon Ölçüm Sistemi</div>
         </div>
       </div>
 
-      {/* session meta — only when logged in */}
+      {/* Proses bilgileri */}
       {session.isLoggedIn && (
         <div style={{ display:'flex', gap:18, flex:1 }}>
           {[
             ['Layers', '3'],
-            ['Cores', '1'],
-            ['Ölçüm birimi', 'mm'],
+            ['Temp.', '21°C'],
+            ['Ringdurchmesser', '12.0mm'],
+            ['Prüfer', session.username],
           ].map(([k, v]) => (
-            <div key={k} style={{ display:'flex', flexDirection:'column' }}>
-              <span style={{ fontSize:10, color:'#475569' }}>{k}</span>
-              <span style={{ fontSize:12, fontWeight:700, color:'#94a3b8' }}>{v}</span>
+            <div key={k}>
+              <div style={{ color:'#81c784', fontSize:9, textTransform:'uppercase', letterSpacing:.5 }}>{k}</div>
+              <div style={{ color:'#e8f5e9', fontSize:12, fontWeight:600 }}>{v}</div>
             </div>
           ))}
         </div>
       )}
 
-      <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:10 }}>
-        {/* lang toggle */}
-        <button
-          onClick={() => setLang(lang === 'tr' ? 'en' : 'tr')}
-          style={{
-            background:'#1e2330', border:'1px solid #262d3a',
-            color:'#4ade80', padding:'5px 12px', borderRadius:6,
-            fontWeight:700, fontSize:12, cursor:'pointer',
-          }}
-        >
+      <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
+        {/* Lang */}
+        <button onClick={() => setLang(lang === 'tr' ? 'en' : 'tr')} style={{
+          background:'#2e3d2e', border:'1px solid #4caf50', color:'#81c784',
+          padding:'4px 10px', borderRadius:4, fontSize:11, fontWeight:700,
+        }}>
           🌐 {lang.toUpperCase()}
         </button>
 
         {session.isLoggedIn && (
           <>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <div style={{
-                width:28, height:28, borderRadius:'50%',
-                background:'#1e2330', border:'1px solid #262d3a',
-                display:'flex', alignItems:'center', justifyContent:'center',
-                fontSize:14,
-              }}>👤</div>
-              <div>
-                <div style={{ fontSize:12, fontWeight:700, color:'#f1f5f9' }}>{session.username}</div>
-                <div style={{ fontSize:10, color:'#475569' }}>{session.role}</div>
-              </div>
-            </div>
-
+            <div style={{ color:'#81c784', fontSize:10 }}>{t.role}: <span style={{ color:'#e8f5e9', fontWeight:700 }}>{session.role}</span></div>
             {session.role === 'ADMIN' && (
-              <button
-                onClick={() => setActiveScreen('admin')}
-                style={{ background:'#1e3a5f', border:'1px solid #1d4ed8', color:'#60a5fa', padding:'6px 12px', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer' }}
-              >
-                ⚙️ Admin
-              </button>
+              <button onClick={() => setActiveScreen('admin')} style={{
+                background:'#2e3d2e', border:'1px solid #4caf50', color:'#4caf50',
+                padding:'5px 12px', borderRadius:4, fontSize:11, fontWeight:700,
+              }}>⚙ Admin</button>
             )}
-
-            <button
-              onClick={logout}
-              style={{ background:'#4c0519', border:'1px solid #f43f5e', color:'#f43f5e', padding:'6px 12px', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer' }}
-            >
-              → {t.logout}
-            </button>
+            <button onClick={logout} style={{
+              background:'#3d1f1f', border:'1px solid #c62828', color:'#ef9a9a',
+              padding:'5px 12px', borderRadius:4, fontSize:11, fontWeight:700,
+            }}>↪ {t.logout}</button>
           </>
         )}
+        <span style={{ color:'#4a5a4a', fontSize:10, marginLeft:4 }}>v23.1.27.11</span>
       </div>
     </div>
   );
