@@ -2,13 +2,11 @@ import React from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { translations } from '../../core/i18n/translations';
 
-/* App title — our own product, not VisioCablePro */
-const APP_NAME = 'Kablo Yalıtım Kalınlığı Ölçüm Programı';
+const APP_TITLE = 'Kablo Yalıtım Kalınlığı Ölçüm Programı';
 
 export const TopBar: React.FC = () => {
   const { session, lang, setLang, logout, setActiveScreen } = useAppStore();
   const t = translations[lang];
-  const now = new Date().toLocaleDateString('tr-TR', { day:'2-digit', month:'short', year:'numeric' });
 
   return (
     <div style={{
@@ -21,31 +19,36 @@ export const TopBar: React.FC = () => {
       borderBottom: '2px solid #3d8b40',
       flexShrink: 0,
     }}>
-      {/* App name */}
-      <div style={{ color: '#e8f5e9', fontWeight: 600, fontSize: 14, letterSpacing: 0.2, marginRight: 8 }}>
-        {APP_NAME}
+      {/* Başlık */}
+      <div style={{ color: '#e8f5e9', fontWeight: 600, fontSize: 13, letterSpacing: 0.2 }}>
+        {APP_TITLE}
       </div>
 
-      {/* Separator */}
-      <div style={{ width: 1, height: 28, background: '#3a4a3a' }}/>
+      <div style={{ width: 1, height: 26, background: '#3a4a3a' }} />
 
-      {/* Session meta */}
+      {/* Giriş bilgileri */}
       {session.isLoggedIn && (
-        <div style={{ display: 'flex', gap: 20, flex: 1 }}>
-          {[
-            ['Prüfer', session.username],
-            ['Temp.', '21°C'],
-            ['Tarih', now],
-          ].map(([k, v]) => (
-            <div key={k}>
-              <div style={{ color: '#81c784', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5 }}>{k}</div>
-              <div style={{ color: '#e8f5e9', fontSize: 12, fontWeight: 600 }}>{v}</div>
+        <div style={{ display: 'flex', gap: 16, flex: 1 }}>
+          <div>
+            <div style={{ color: '#81c784', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              {t.operator}
             </div>
-          ))}
+            <div style={{ color: '#e8f5e9', fontSize: 12, fontWeight: 600 }}>
+              {session.username}
+            </div>
+          </div>
+          <div>
+            <div style={{ color: '#81c784', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              {t.role}
+            </div>
+            <div style={{ color: '#e8f5e9', fontSize: 12, fontWeight: 600 }}>
+              {session.role === 'ADMIN' ? t.admin : t.operator}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Right controls */}
+      {/* Sağ taraf */}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
         <button
           onClick={() => setLang(lang === 'tr' ? 'en' : 'tr')}
@@ -59,10 +62,6 @@ export const TopBar: React.FC = () => {
 
         {session.isLoggedIn && (
           <>
-            <span style={{ color: '#81c784', fontSize: 11 }}>
-              {session.username} ({session.role})
-            </span>
-
             {session.role === 'ADMIN' && (
               <button
                 onClick={() => setActiveScreen('admin')}
@@ -71,10 +70,9 @@ export const TopBar: React.FC = () => {
                   padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600,
                 }}
               >
-                ⚙ Admin
+                ⚙ {t.adminPanel}
               </button>
             )}
-
             <button
               onClick={logout}
               style={{

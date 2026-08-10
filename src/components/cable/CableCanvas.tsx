@@ -2,10 +2,25 @@ import React, { useEffect, useRef } from 'react';
 import type { CableTypeCategory } from '../../core/interfaces/cable';
 import { CableTypeCategoryEnum as C } from '../../core/interfaces/cable';
 
-interface Props { cableType: CableTypeCategory; width?: number; height?: number; }
+interface Props {
+  cableType: CableTypeCategory;
+  width?: number;
+  height?: number;
+  /** When true, draws on white background (for icon thumbnails) */
+  thumbnail?: boolean;
+}
 
-/* Draws a detailed cross-section diagram matching EK_2 illustrations */
-export const CableCanvas: React.FC<Props> = ({ cableType, width = 520, height = 440 }) => {
+/**
+ * Draws cable cross-section diagrams matching EK_2 illustrations.
+ * Black background with light-gray/white layer outlines — same look as
+ * the real microscope images shown in the specification document.
+ */
+export const CableCanvas: React.FC<Props> = ({
+  cableType,
+  width = 500,
+  height = 400,
+  thumbnail = false,
+}) => {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -19,260 +34,283 @@ export const CableCanvas: React.FC<Props> = ({ cableType, width = 520, height = 
     const cx = W / 2;
     const cy = H / 2;
 
-    ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = '#080a0d';
+    // background
+    ctx.fillStyle = thumbnail ? '#f0f0f0' : '#111';
     ctx.fillRect(0, 0, W, H);
 
-    /* ── helper: draw dashed radial lines (60° intervals) ── */
-    const radialLines = (fromR: number, toR: number, color = 'rgba(255,255,255,0.35)') => {
-      ctx.save();
-      ctx.strokeStyle = color;
-      ctx.setLineDash([5, 5]);
-      ctx.lineWidth = 1.2;
-      for (let i = 0; i < 6; i++) {
-        const a = (i * 60 * Math.PI) / 180;
-        ctx.beginPath();
-        ctx.moveTo(cx + Math.cos(a) * fromR, cy + Math.sin(a) * fromR);
-        ctx.lineTo(cx + Math.cos(a) * toR,   cy + Math.sin(a) * toR);
-        ctx.stroke();
-      }
-      ctx.setLineDash([]);
-      ctx.restore();
-    };
-
-    /* ── helper: draw filled + stroked circle ── */
-    const circle = (x: number, y: number, r: number, fill: string, stroke: string, sw = 2.5) => {
+    // helper: draw a filled circle with an outline
+    const ring = (
+      x: number, y: number, r: number,
+      fill: string, stroke: string, lw = 2
+    ) => {
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fillStyle = fill;
       ctx.fill();
       ctx.strokeStyle = stroke;
-      ctx.lineWidth = sw;
+      ctx.lineWidth = lw;
       ctx.stroke();
     };
 
-    /* ── helper: center marker ── */
-    const marker = (x: number, y: number, color: string, label: string) => {
-      ctx.fillStyle = color;
+    // helper: dashed measurement line
+    const dashLine = (
+      x1: number, y1: number, x2: number, y2: number, color = '#facc15'
+    ) => {
+      ctx.save();
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(x, y, 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = color;
-      ctx.font = 'bold 12px Inter, sans-serif';
-      ctx.fillText(label, x + 7, y - 5);
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
     };
 
-    /* ── helper: measurement arrow label ── */
-    const measureLabel = (text: string, x: number, y: number) => {
-      ctx.fillStyle = 'rgba(250,204,21,0.9)';
-      ctx.font = '11px Inter, sans-serif';
+    // helper: small measurement label
+    const label = (text: string, x: number, y: number, color = '#facc15') => {
+      ctx.font = `bold ${thumbnail ? 8 : 11}px Segoe UI, sans-serif`;
+      ctx.fillStyle = color;
       ctx.fillText(text, x, y);
     };
 
-    if (cableType === C.XLPE_HV) {
-      /* VELOX style: outer(yellow) → XLPE(red fill) → inner semi-con(blue) → conductor(white) */
-      circle(cx, cy, 190, 'transparent', '#eab308', 2.5);                     // outer boundary
-      circle(cx, cy, 175, 'rgba(185,28,28,0.55)', '#ef4444', 2);              // XLPE outer
-      circle(cx, cy, 95,  'rgba(30,41,59,0.9)',   '#3b82f6', 2);              // inner semi-con
-      circle(cx + 6, cy - 4, 62, '#374151', '#6b7280', 1.5);                  // conductor (offset → eccentricity)
-      /* conductor strands (multi-wire look) */
+    // helper: 6 radial measurement lines at 60° intervals (EK_2 method)
+    const radial6 = (cx2: number, cy2: number, r1: number, r2: number) => {
+      ctx.save();
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([4, 4]);
       for (let i = 0; i < 6; i++) {
         const a = (i * 60 * Math.PI) / 180;
-        circle(cx + 6 + Math.cos(a) * 28, cy - 4 + Math.sin(a) * 28, 12, '#9ca3af', '#d1d5db', 1);
+        ctx.beginPath();
+        ctx.moveTo(cx2 + Math.cos(a) * r1, cy2 + Math.sin(a) * r1);
+        ctx.lineTo(cx2 + Math.cos(a) * r2, cy2 + Math.sin(a) * r2);
+        ctx.stroke();
       }
-      circle(cx + 6, cy - 4, 14, '#d1d5db', '#f1f5f9', 1);
+      ctx.setLineDash([]);
+      ctx.restore();
+    };
 
-      radialLines(95, 175, 'rgba(100,200,120,0.5)');
+    // center cross marker for O1/O2
+    const cross = (x: number, y: number, color: string, lbl: string) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x - 6, y); ctx.lineTo(x + 6, y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x, y - 6); ctx.lineTo(x, y + 6); ctx.stroke();
+      label(lbl, x + 8, y - 4, color);
+    };
 
-      marker(cx, cy, '#eab308', 'O1');
-      marker(cx + 6, cy - 4, '#ef4444', 'O2');
+    if (cableType === C.XLPE_HV) {
+      // EK_2 Fig.3: outer (yellow) → dış yarı iletken (gray) → XLPE (dark) → iç yarı iletken (gray) → iletken (white)
+      ring(cx, cy, 185, '#2a2a2a', '#e8c840', 3);   // dış sınır (sarı)
+      ring(cx, cy, 168, '#444', '#ddd', 2);           // dış yarı iletken dış
+      ring(cx, cy, 140, '#1a1a1a', '#bbb', 2);        // XLPE dış → yeşil
+      ring(cx, cy, 90, '#333', '#6af', 2);             // iç yarı iletken → mavi
+      ring(cx, cy, 70, '#222', '#f55', 2);             // iletken dış → kırmızı
+      ring(cx + 5, cy - 4, 42, '#555', '#eee', 1.5);  // iletken (beyaz)
 
-      /* tmin/tmax labels */
-      measureLabel('t_min_xlpe', cx + 98, cy - 18);
-      measureLabel('t_max_xlpe', cx + 115, cy + 20);
-      measureLabel('Dış Yarı İletken', cx - 185, cy - 20);
-      measureLabel('XLPE İzolasyon',   cx + 110, cy - 90);
-      measureLabel('İç Yarı İletken',  cx - 100, cy - 105);
+      radial6(cx, cy, 90, 140);  // XLPE 60° ölçüm çizgileri
+
+      cross(cx, cy, '#e8c840', 'O1');
+      cross(cx + 5, cy - 4, '#f55', 'O2');
+
+      label('t_min_xlpe', cx + 92, cy + 5);
+      label('t_max_xlpe', cx - 148, cy - 10);
+      if (!thumbnail) {
+        label('İç Yarı İletken', cx - 88, cy - 96, '#6af');
+        label('XLPE İzolasyon', cx + 95, cy - 85);
+        label('Dış Yarı İletken', cx - 172, cy + 60, '#ddd');
+        label('eksen kaçıklığı', cx - 5, cy + 195, '#fff');
+        dashLine(cx, cy, cx + 5, cy - 4, '#fff');
+      }
 
     } else if (cableType === C.TESISAT_SINGLE_COLOR) {
-      /* Two-color single core – yellow-green isolation */
-      circle(cx, cy, 170, 'transparent', '#facc15', 2.5);
-      /* insulation fill – split color (yellow / green) */
+      // EK_2 Fig.6: sarı-yeşil renkli tek damarlı
+      // dış çember
+      ring(cx, cy, 170, '#1a1a1a', '#bbb', 2.5);
+
+      // sarı yarım (üst) + yeşil yarım (alt) — renk oranı gösterimi
       ctx.save();
-      ctx.beginPath(); ctx.arc(cx, cy, 160, 0, Math.PI); ctx.closePath();
-      ctx.fillStyle = 'rgba(234,179,8,0.45)'; ctx.fill();
-      ctx.beginPath(); ctx.arc(cx, cy, 160, Math.PI, Math.PI * 2); ctx.closePath();
-      ctx.fillStyle = 'rgba(34,197,94,0.45)'; ctx.fill();
+      ctx.beginPath(); ctx.arc(cx, cy, 155, 0, Math.PI); ctx.closePath();
+      ctx.fillStyle = 'rgba(200,170,0,0.55)'; ctx.fill();
+      ctx.beginPath(); ctx.arc(cx, cy, 155, Math.PI, Math.PI * 2); ctx.closePath();
+      ctx.fillStyle = 'rgba(30,140,30,0.55)'; ctx.fill();
       ctx.restore();
-      circle(cx, cy, 160, 'transparent', '#eab308', 1.8);
-      circle(cx + 5, cy - 3, 80, '#374151', '#6b7280', 2);    // conductor
-      circle(cx + 5, cy - 3, 40, '#9ca3af', '#f1f5f9', 1.5);
 
-      /* arc labels y1 / y2 */
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([]);
-      ctx.beginPath(); ctx.arc(cx, cy, 165, 0, Math.PI * 0.6); ctx.stroke();
-      measureLabel('y1', cx + 140, cy - 110);
-      ctx.beginPath(); ctx.arc(cx, cy, 165, Math.PI, Math.PI * 1.6); ctx.stroke();
-      measureLabel('y2', cx - 170, cy + 110);
+      ring(cx, cy, 155, 'transparent', '#ddd', 1.8);
+      ring(cx + 6, cy - 4, 80, '#222', '#f55', 2);   // iletken dış
+      ring(cx + 6, cy - 4, 45, '#555', '#ddd', 1.5); // iletken iç
 
-      marker(cx, cy, '#facc15', 'O1');
-      marker(cx + 5, cy - 3, '#ef4444', 'O2');
-      radialLines(80, 160, 'rgba(250,204,21,0.4)');
-      measureLabel('tmin', cx + 82, cy + 10);
-      measureLabel('≥30% renk oranı', cx - 90, cy + 175);
+      radial6(cx, cy, 80, 155);
+
+      cross(cx, cy, '#bbb', 'O1');
+      cross(cx + 6, cy - 4, '#f55', 'O2');
+
+      label('tmin', cx + 82, cy + 5);
+      if (!thumbnail) {
+        // y1/y2 yay gösterimi
+        ctx.save();
+        ctx.strokeStyle = '#4af'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(cx, cy, 162, 0, Math.PI * 0.5); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx, cy, 162, Math.PI, Math.PI * 1.5); ctx.stroke();
+        ctx.restore();
+        label('y1', cx + 140, cy - 100, '#4af');
+        label('y2', cx - 155, cy + 120, '#4af');
+        label('≥%30 renk oranı', cx - 60, cy + 180, '#fff');
+      }
 
     } else if (cableType === C.TESISAT_MULTI_CORE) {
-      /* 3-core stranded */
-      circle(cx, cy, 175, 'transparent', '#38bdf8', 2.5);
-      circle(cx, cy, 160, 'rgba(30,58,95,0.4)', '#1d4ed8', 1.5);
-      const corePos = [[cx, cy - 75], [cx - 65, cy + 38], [cx + 65, cy + 38]] as [number,number][];
-      corePos.forEach(([x, y], i) => {
-        circle(x, y, 48, 'rgba(30,64,175,0.55)', '#3b82f6', 1.8);
-        circle(x, y, 25, '#374151', '#6b7280', 1.5);
-        measureLabel(`t${i + 1}`, x - 12, y - 52);
+      // EK_2 Fig.12: 3 damarlı çok iletkenli
+      ring(cx, cy, 170, '#1a1a1a', '#f55', 2.5);  // dış (kırmızı)
+      ring(cx, cy, 150, '#222', '#44f', 2);         // iç grup (mavi)
+
+      // 3 damar 120° aralıkla
+      const cores: [number, number][] = [
+        [cx, cy - 72],
+        [cx - 62, cy + 36],
+        [cx + 62, cy + 36],
+      ];
+      cores.forEach(([x, y], i) => {
+        ring(x, y, 52, '#1a1a1a', '#ddd', 2);
+        ring(x, y, 30, '#333', '#aaa', 1.5);
+        label(`t${i + 1}`, x - 10, y - 58, '#facc15');
       });
-      marker(cx, cy, '#38bdf8', 'O2');
-      measureLabel('Dış Kılıf', cx + 120, cy - 155);
+
+      cross(cx, cy, '#44f', 'O2');
+      cross(cx - 2, cy - 3, '#f55', 'O1');
+      if (!thumbnail) label('eksen kaçıklığı = |O1-O2|', cx - 70, cy + 185, '#fff');
 
     } else if (cableType === C.TESISAT_NYAF_SOM) {
-      /* Solid / fine-wire single core */
-      circle(cx, cy, 170, 'transparent', '#a78bfa', 2.5);
-      circle(cx, cy, 155, 'rgba(109,40,217,0.35)', '#7c3aed', 2);
-      /* fine wires */
-      for (let i = 0; i < 12; i++) {
-        const a = (i * 30 * Math.PI) / 180;
-        circle(cx + Math.cos(a) * 55, cy + Math.sin(a) * 55, 16, '#4c1d95', '#7c3aed', 1);
+      // EK_2 Fig.14: tek damarlı çok telli / som
+      ring(cx, cy, 168, '#1a1a1a', '#44f', 2.5);  // dış mavi
+      ring(cx, cy, 148, '#111', '#ddd', 2);
+      ring(cx + 5, cy - 4, 78, '#222', '#f55', 2); // iletken dış kırmızı
+
+      // çok telli görünümü (küçük tel daireleri)
+      for (let i = 0; i < 10; i++) {
+        const a = (i * 36 * Math.PI) / 180;
+        ring(cx + 5 + Math.cos(a) * 44, cy - 4 + Math.sin(a) * 44, 12, '#333', '#aaa', 1);
       }
-      circle(cx, cy, 22, '#7c3aed', '#c4b5fd', 1.5);
-      radialLines(80, 155, 'rgba(196,181,253,0.4)');
-      marker(cx, cy, '#a78bfa', 'O1');
-      measureLabel('tmin', cx + 82, cy + 12);
-      measureLabel('İletken (çok telli)', cx - 50, cy + 3);
+      ring(cx + 5, cy - 4, 18, '#555', '#ddd', 1.2);
+
+      radial6(cx, cy, 78, 148);
+      cross(cx, cy, '#ddd', 'O1');
+      cross(cx + 5, cy - 4, '#f55', 'O2');
+      label('tmin', cx + 80, cy + 5);
 
     } else if (cableType === C.AER) {
-      /* AER with ridges */
-      /* ridges */
+      // EK_2 Fig.16: AER çıkıntılı kablo
+      // 3 çıkıntı
       for (let i = 0; i < 3; i++) {
-        const a = (i * 120 * Math.PI) / 180;
-        const rx = cx + Math.cos(a) * 165;
-        const ry = cy + Math.sin(a) * 165;
+        const a = (i * 120 * Math.PI) / 180 - Math.PI / 2;
+        const px = cx + Math.cos(a) * 162;
+        const py = cy + Math.sin(a) * 162;
         ctx.save();
-        ctx.translate(rx, ry);
-        ctx.rotate(a);
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 12, 22, 0, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(251,146,60,0.5)';
-        ctx.fill();
-        ctx.strokeStyle = '#fb923c';
-        ctx.lineWidth = 1.8;
-        ctx.stroke();
+        ctx.translate(px, py); ctx.rotate(a);
+        ctx.beginPath(); ctx.ellipse(0, 0, 10, 20, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#333'; ctx.fill();
+        ctx.strokeStyle = '#bbb'; ctx.lineWidth = 2; ctx.stroke();
         ctx.restore();
-        measureLabel('Çb', rx + 14, ry + 4);
+        if (!thumbnail) label('Çb', px + 12, py + 4, '#facc15');
       }
-      circle(cx, cy, 155, 'rgba(67,20,7,0.6)', '#ea580c', 2.5);
-      circle(cx + 4, cy - 3, 80, '#374151', '#6b7280', 2);
-      circle(cx + 4, cy - 3, 42, '#9ca3af', '#f1f5f9', 1.5);
-      radialLines(80, 155, 'rgba(251,146,60,0.4)');
-      marker(cx, cy, '#fb923c', 'O1');
-      marker(cx + 4, cy - 3, '#ef4444', 'O2');
-      measureLabel('tmin', cx + 83, cy + 10);
+
+      ring(cx, cy, 148, '#1a1a1a', '#e8c840', 2.5); // dış (sarı O1)
+      ring(cx + 6, cy - 5, 80, '#222', 'orange', 2); // iletken (turuncu O2)
+      ring(cx + 6, cy - 5, 44, '#444', '#ddd', 1.5);
+
+      radial6(cx, cy, 80, 148);
+      cross(cx, cy, '#e8c840', 'O1');
+      cross(cx + 6, cy - 5, 'orange', 'O2');
+      label('tmin', cx + 82, cy + 5);
 
     } else if (cableType === C.NYIF) {
-      /* Flat NYIF – two cores side by side + bridge */
-      const bw = 280, bh = 140;
+      // EK_2 Fig.19: NYIF yassı 2 damarlı
+      const bw = 300, bh = 130;
       ctx.beginPath();
-      ctx.roundRect(cx - bw / 2, cy - bh / 2, bw, bh, 18);
-      ctx.fillStyle = 'rgba(5,46,22,0.5)';
+      ctx.roundRect(cx - bw / 2, cy - bh / 2, bw, bh, 20);
+      ctx.fillStyle = '#1a1a1a';
       ctx.fill();
-      ctx.strokeStyle = '#34d399';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
+      ctx.strokeStyle = '#ddd'; ctx.lineWidth = 2.5; ctx.stroke();
 
+      // sol ve sağ damar
       [cx - 82, cx + 82].forEach(x => {
-        circle(x, cy, 44, 'rgba(6,78,59,0.6)', '#10b981', 1.8);
-        circle(x, cy, 24, '#374151', '#6b7280', 1.5);
-        circle(x, cy, 12, '#9ca3af', '#d1d5db', 1);
+        ring(x, cy, 46, '#111', 'orange', 2);  // damar dış (turuncu)
+        ring(x, cy, 28, '#222', '#f55', 1.8);  // iletken (kırmızı)
+        ring(x, cy, 14, '#555', '#ddd', 1);
       });
-      /* bridge dimension lines */
-      ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 1.5; ctx.setLineDash([4,3]);
-      ctx.beginPath(); ctx.moveTo(cx - 38, cy); ctx.lineTo(cx + 38, cy); ctx.stroke();
-      ctx.setLineDash([]);
-      measureLabel('y2 (köprü)', cx - 35, cy - 8);
-      ctx.beginPath(); ctx.moveTo(cx - bw/2 + 8, cy - bh/2 + 8); ctx.lineTo(cx - bw/2 + 8, cy + bh/2 - 8); ctx.strokeStyle='#38bdf8'; ctx.stroke();
-      measureLabel('y1', cx - bw/2 + 12, cy + 5);
-      measureLabel('tmin', cx - 107, cy - 52);
+
+      // köprü boyutları
+      if (!thumbnail) {
+        dashLine(cx - 36, cy, cx + 36, cy, '#4af');
+        label('y2 (köprü genişliği)', cx - 50, cy - 12, '#4af');
+        dashLine(cx - bw / 2 + 8, cy - bh / 2 + 8, cx - bw / 2 + 8, cy + bh / 2 - 8, '#4af');
+        label('y1', cx - bw / 2 + 12, cy + 5, '#4af');
+        label('tmin', cx - 106, cy - 55, '#facc15');
+      }
 
     } else if (cableType === C.YASSI_TTR) {
-      /* Flat TTR – 3 cores in a row */
-      const bw = 340, bh = 130;
+      // EK_2 Fig.22: Yassı TTR 3 damarlı
+      const bw = 340, bh = 120;
       ctx.beginPath();
       ctx.roundRect(cx - bw / 2, cy - bh / 2, bw, bh, 14);
-      ctx.fillStyle = 'rgba(46,16,101,0.4)';
-      ctx.fill();
-      ctx.strokeStyle = '#a855f7';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
+      ctx.fillStyle = '#1a1a1a'; ctx.fill();
+      ctx.strokeStyle = '#ddd'; ctx.lineWidth = 2.5; ctx.stroke();
 
-      const xs = [cx - 110, cx, cx + 110];
-      xs.forEach((x, i) => {
-        circle(x, cy, 42, 'rgba(76,29,149,0.55)', '#7c3aed', 1.8);
-        circle(x, cy, 22, '#374151', '#6b7280', 1.5);
-        measureLabel(`t${i + 1}`, x - 8, cy - 46);
+      // 3 damar eşit aralıkla
+      [cx - 106, cx, cx + 106].forEach((x, i) => {
+        ring(x, cy, 42, '#222', '#ddd', 2);
+        ring(x, cy, 22, '#333', '#aaa', 1.5);
+        label(`t${i + 1}`, x - 10, cy - 50, '#facc15');
       });
-      /* y1/y2 */
-      ctx.strokeStyle = '#e879f9'; ctx.lineWidth = 1.2; ctx.setLineDash([3,3]);
-      ctx.beginPath(); ctx.moveTo(cx - bw/2 + 6, cy - bh/2 + 6); ctx.lineTo(cx + bw/2 - 6, cy - bh/2 + 6); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(cx - bw/2 + 6, cy - bh/2 + 6); ctx.lineTo(cx - bw/2 + 6, cy + bh/2 - 6); ctx.stroke();
-      ctx.setLineDash([]);
-      measureLabel('y2 (genişlik)', cx - 60, cy - bh/2 + 18);
-      measureLabel('y1', cx - bw/2 + 10, cy + 10);
+
+      if (!thumbnail) {
+        // y1/y2 boyut çizgileri
+        dashLine(cx - bw / 2 + 6, cy - bh / 2 + 6, cx + bw / 2 - 6, cy - bh / 2 + 6, '#4af');
+        label('y2 (genişlik)', cx - 60, cy - bh / 2 + 20, '#4af');
+        dashLine(cx - bw / 2 + 6, cy - bh / 2 + 6, cx - bw / 2 + 6, cy + bh / 2 - 6, '#4af');
+        label('y1', cx - bw / 2 + 10, cy + 8, '#4af');
+      }
 
     } else if (cableType === C.SEKTOR) {
-      /* Sector cable – triangular cross-section */
-      const drawSector = (offsetX: number, offsetY: number, r: number, startAngle: number, endAngle: number, fill: string, stroke: string) => {
-        ctx.beginPath();
-        ctx.moveTo(cx + offsetX, cy + offsetY);
-        ctx.arc(cx + offsetX, cy + offsetY, r, startAngle, endAngle);
-        ctx.closePath();
-        ctx.fillStyle = fill;
-        ctx.fill();
-        ctx.strokeStyle = stroke;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      };
-      /* Three sectors arranged in triangle */
-      const sectorAngle = (2 * Math.PI) / 3;
+      // EK_2: sektör kesit — 3 eşit dilim
+      const secAngle = (2 * Math.PI) / 3;
       for (let i = 0; i < 3; i++) {
-        const startA = i * sectorAngle - sectorAngle / 2 - Math.PI / 2;
-        const endA   = startA + sectorAngle;
-        drawSector(0, 0, 150, startA, endA, 'rgba(5,46,22,0.55)', '#4ade80');
-        const midA = startA + sectorAngle / 2;
-        const lx = cx + Math.cos(midA) * 90;
-        const ly = cy + Math.sin(midA) * 90;
-        circle(lx, ly, 35, '#374151', '#6b7280', 1.5);
-        circle(lx, ly, 18, '#9ca3af', '#d1d5db', 1);
-        measureLabel('tmin', lx + 37, ly + 4);
+        const startA = i * secAngle - secAngle / 2 - Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, 150, startA, startA + secAngle);
+        ctx.closePath();
+        ctx.fillStyle = '#1e1e1e';
+        ctx.fill();
+        ctx.strokeStyle = '#bbb'; ctx.lineWidth = 2; ctx.stroke();
+
+        const mid = startA + secAngle / 2;
+        ring(cx + Math.cos(mid) * 80, cy + Math.sin(mid) * 80, 32, '#333', '#aaa', 1.5);
+        if (!thumbnail) label('tmin', cx + Math.cos(mid) * 115 - 14, cy + Math.sin(mid) * 115 + 4, '#facc15');
       }
-      marker(cx, cy, '#4ade80', 'O2');
-      measureLabel('O2 (Yalıtım merkezi)', cx + 8, cy - 10);
-      measureLabel('Sektör Kesit', cx - 50, cy - 165);
+      cross(cx, cy, '#4af', 'O2');
     }
 
-    /* ── watermark version ── */
-    ctx.fillStyle = 'rgba(74,222,128,0.08)';
-    ctx.font = 'bold 11px Inter, sans-serif';
-    ctx.fillText('VELOX Engine – test image', 10, H - 10);
-
-  }, [cableType]);
+    // bottom-right tiny note (skip on thumbnails)
+    if (!thumbnail) {
+      ctx.font = '9px Segoe UI, sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.fillText('EK_2 kesit diyagramı', 8, H - 6);
+    }
+  }, [cableType, thumbnail]);
 
   return (
     <canvas
       ref={ref}
       width={width}
       height={height}
-      style={{ borderRadius: 8, border: '1px solid #262d3a', display: 'block', maxWidth: '100%' }}
+      style={{
+        borderRadius: thumbnail ? 4 : 6,
+        border: `1px solid ${thumbnail ? '#ccc' : '#333'}`,
+        display: 'block',
+        maxWidth: '100%',
+      }}
     />
   );
 };

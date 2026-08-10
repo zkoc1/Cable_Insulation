@@ -1,320 +1,333 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { CABLE_PROFILES } from '../../core/data/profiles';
-import { CableIcon } from '../cable/CableIcon';
+import { translations } from '../../core/i18n/translations';
 import { CableCanvas } from '../cable/CableCanvas';
 import type { CableTypeCategory } from '../../core/interfaces/cable';
 
-/* ─── EK_2 formül grupları ─── */
-const formulaTabs = [
-  {
-    name: 'Diameter',
-    items: [
-      { label:'Concentricity (tmin/tmax)',    formula:'(t_min / t_max) × 100%',           std:'IEC 60811-201' },
-      { label:'Concentricity (tmin/tavg)',    formula:'(t_min / t_avg) × 100%'                              },
-      { label:'Concentricity [VDE]',          formula:'(t_min / t_opposit) × 100%'                          },
-      { label:'Concentricity M/L',            formula:'(t_max − t_min) / Di_WPs × 100%'                     },
-      { label:'Concentricity [ISO 1101] %',   formula:'(w_min / w_max) × 100%',           std:'ISO 1101'    },
-      { label:'MPa − MPi  (Pressure diff)',   formula:'M_Pa − M_Pi',                       std:'ISO 1101'    },
-    ],
-  },
-  {
-    name: 'Walls',
-    items: [
-      { label:'Wall thickness min',           formula:'t_min = min(t₁, t₂, …, t₆)'                         },
-      { label:'Wall thickness avg',           formula:'t_avg = Σtᵢ / n'                                      },
-      { label:'Wall thickness max',           formula:'t_max = max(t₁, t₂, …, t₆)'                         },
-      { label:'Wall thickness single value',  formula:'tᵢ = (D_outer − D_inner) / 2'                        },
-      { label:'Diameter inner (WPs)',         formula:'D_inner = 2 × r_inner         [mm]'                  },
-      { label:'Diameter outer avg (contour)', formula:'D_outer = 2 × r_outer_avg     [mm]'                  },
-    ],
-  },
-  {
-    name: 'Eccentricity',
-    items: [
-      { label:'Eccentricity (tmax)',          formula:'(t_max / t_min) × 100%'                              },
-      { label:'Eccentricity (tavg)',          formula:'(t_avg / t_min) × 100%'                              },
-      { label:'Eccentricity [VDE]',           formula:'(t_opposit / t_min) × 100%'                          },
-      { label:'Eccentricity M/L',             formula:'(t_max − t_min) / D_error × 100%'                    },
-      { label:'Eccentricity [ASTM D4565]',    formula:'(t_max − t_min) / t_avg × 100%',    std:'ASTM D4565' },
-      { label:'Eksen kaçıklığı |O1−O2|',      formula:'e = √((x₁−x₂)² + (y₁−y₂)²)  [mm]', std:'TS EN 60811'},
-    ],
-  },
-  {
-    name: 'Concentricities',
-    items: [
-      { label:'Centricity',                   formula:'(1 − Konz) × 100%'                                   },
-      { label:'Centricity tavg',              formula:'(1 − Konz_avg) × 100%'                               },
-      { label:'Centricity [VDE]',             formula:'(1 − Konz_VDE) × 100%'                               },
-      { label:'Centricity M/L',               formula:'(1 − Konz_ML) × 100%'                                },
-    ],
-  },
-  {
-    name: 'Distances & Forms',
-    items: [
-      { label:'Uncentricity',                 formula:'(t_avg − t_min) / 2    [mm]'                         },
-      { label:'Uncentricity tavg',            formula:'(t_opposit − t_min) / 2 [mm]'                        },
-      { label:'Uncentricity [IAA]',           formula:'(t_opposit − t_min)     [mm]'                        },
-      { label:'Ovalite',                      formula:'(D_max − D_min) / D_avg × 100%',  std:'TS EN 60811-201' },
-      { label:'Çıkıntı Boyu — AER (Çb)',      formula:'Çb = h_çıkıntı − h_nominal  [mm]', std:'TS 11654'   },
-      { label:'Çıkıntılar arası mesafe (Çm)', formula:'Çm = arc(Ö₁, Ö₂) mesafesi   [mm]', std:'TS 11654'  },
-    ],
-  },
-  {
-    name: 'Areas & Volumes',
-    items: [
-      { label:'Cross-section real area',      formula:'A = π × r² (contour − inner)  [mm²]'                 },
-      { label:'Cross-section area total',     formula:'A_total = π × (D_outer/2)²    [mm²]'                 },
-      { label:'Wall area',                    formula:'A_wall = A_total − A_inner     [mm²]'                 },
-    ],
-  },
-];
+// --- Type definitions ---
 
-/* ─── Kablo başına EK_2 parametreleri ─── */
-const cableParamMap: Record<string, { name:string; formula:string; std:string }[]> = {
+interface Formula {
+  id: string;
+  label: string;
+  expression: string;
+  standard?: string;
+}
+
+// Default formulas per cable type, sourced from EK_2
+const DEFAULT_FORMULAS: Record<string, Formula[]> = {
   XLPE_HV: [
-    { name:'tmin_xlpe',     formula:'min 6-nokta XLPE duvar kalınlığı', std:'TS EN 60811-201' },
-    { name:'tmax_xlpe',     formula:'max XLPE duvar kalınlığı',          std:'TS EN 60811-201' },
-    { name:'tmin_ic',       formula:'İç yarı iletken min. kalınlık',     std:'TS EN 60811-201' },
-    { name:'tmax_ic',       formula:'İç yarı iletken max. kalınlık',     std:'TS EN 60811-201' },
-    { name:'tmin_dis',      formula:'Dış yarı iletken min. kalınlık',    std:'TS EN 60811-201' },
-    { name:'tmax_dis',      formula:'Dış yarı iletken max. kalınlık',    std:'TS EN 60811-201' },
-    { name:'eccentricity',  formula:'|O1−O2| / (D_outer/2) × 100%',     std:'TS EN 60811'     },
-    { name:'ovality',       formula:'(D_max−D_min)/D_avg × 100%',       std:'TS EN 60811-201' },
+    { id:'x1', label:'tmin (XLPE min kalınlık)',       expression:'tmin = min(t₁,…,t₆)', standard:'TS EN 60811-201' },
+    { id:'x2', label:'tmax (XLPE max kalınlık)',       expression:'tmax = max(t₁,…,t₆)', standard:'TS EN 60811-201' },
+    { id:'x3', label:'tmin_iç (iç yarı iletken)',      expression:'tmin_iç = min ölçüm',  standard:'TS EN 60811-201' },
+    { id:'x4', label:'tmax_iç (iç yarı iletken)',      expression:'tmax_iç = max ölçüm',  standard:'TS EN 60811-201' },
+    { id:'x5', label:'tmin_dış (dış yarı iletken)',    expression:'tmin_dış = min ölçüm', standard:'TS EN 60811-201' },
+    { id:'x6', label:'tmax_dış (dış yarı iletken)',    expression:'tmax_dış = max ölçüm', standard:'TS EN 60811-201' },
+    { id:'x7', label:'Eksen kaçıklığı',                expression:'e = √((x₁-x₂)² + (y₁-y₂)²)  [mm]', standard:'TS EN 60811' },
+    { id:'x8', label:'Ovalite',                        expression:'ovalite = dmax/dmin × 100', standard:'TS EN 60811-201' },
+    { id:'x9', label:'İzolasyon kaçıklığı',            expression:'kaç = (tmax-tmin)/tmax × 100 [%]', standard:'TS EN 60811-201' },
   ],
   TESISAT_SINGLE_COLOR: [
-    { name:'tmin',          formula:'min izolasyon kalınlığı',           std:'TS EN 50525-1' },
-    { name:'tmax',          formula:'max izolasyon kalınlığı',           std:'TS EN 50525-1' },
-    { name:'O1',            formula:'Dış çember ağırlık merkezi',        std:'TS EN 50525-1' },
-    { name:'O2',            formula:'İzolasyon ağırlık merkezi',         std:'TS EN 50525-1' },
-    { name:'y1',            formula:'Sarı yay uzunluğu (arc length)',    std:'TS EN 50525-1' },
-    { name:'y2',            formula:'Yeşil yay uzunluğu (arc length)',   std:'TS EN 50525-1' },
-    { name:'renk_orani',    formula:'y1/(y1+y2)×100% ≥ 30%',            std:'TS EN 50525-1' },
-    { name:'eksen_kacik.',  formula:'|O1−O2|  [mm]',                    std:'TS EN 50525-1' },
+    { id:'s1', label:'tmin (min izolasyon kalınlığı)', expression:'tmin = min(t₁,…,t₆)', standard:'TS EN 50525-1' },
+    { id:'s2', label:'tmax (max izolasyon kalınlığı)', expression:'tmax = max(t₁,…,t₆)', standard:'TS EN 50525-1' },
+    { id:'s3', label:'Renk oranı (y1+y2)',             expression:'(y1+y2)/360 × 100 ≥ 30%', standard:'TS EN 50525-1' },
+    { id:'s4', label:'Eksen kaçıklığı |O1-O2|',        expression:'e = |O1-O2|  [mm]',   standard:'TS EN 50525-1' },
+    { id:'s5', label:'İç çap (D_inner)',               expression:'D_inner = 2 × r_iletken  [mm]', standard:'TS EN 50525-1' },
+    { id:'s6', label:'Dış çap (D_outer)',               expression:'D_outer = 2 × r_dış  [mm]', standard:'TS EN 50525-1' },
   ],
   TESISAT_MULTI_CORE: [
-    { name:'t1', formula:'1. damar duvar kalınlığı min.',   std:'TS EN 60811-202' },
-    { name:'t2', formula:'2. damar duvar kalınlığı min.',   std:'TS EN 60811-202' },
-    { name:'t3', formula:'3. damar duvar kalınlığı min.',   std:'TS EN 60811-202' },
-    { name:'O1', formula:'Dış kılıf merkezi',               std:'TS EN 60811-202' },
-    { name:'O2', formula:'İzolasyon merkezi',               std:'TS EN 60811-202' },
-    { name:'eksen_kacik.', formula:'|O1−O2|  [mm]',        std:'TS EN 60811-202' },
+    { id:'m1', label:'t1 (1. damar min kalınlık)', expression:'t1 = min ölçüm (damar 1)', standard:'TS EN 60811-202' },
+    { id:'m2', label:'t2 (2. damar min kalınlık)', expression:'t2 = min ölçüm (damar 2)', standard:'TS EN 60811-202' },
+    { id:'m3', label:'t3 (3. damar min kalınlık)', expression:'t3 = min ölçüm (damar 3)', standard:'TS EN 60811-202' },
+    { id:'m4', label:'Eksen kaçıklığı |O1-O2|',    expression:'e = √((x₁-x₂)²+(y₁-y₂)²)', standard:'TS EN 60811-202' },
+    { id:'m5', label:'Dış çap',                    expression:'D_outer = 2×r_dış', standard:'TS EN 60811-202' },
   ],
   TESISAT_NYAF_SOM: [
-    { name:'tmin',         formula:'min izolasyon kalınlığı',    std:'TS EN 60811-202' },
-    { name:'O1',           formula:'Dış çember merkezi',         std:'TS EN 60811-202' },
-    { name:'O2',           formula:'İletken merkezi',            std:'TS EN 60811-202' },
-    { name:'ic_cap',       formula:'D_inner (WPs)  [mm]',        std:'TS EN 60811-202' },
-    { name:'dis_cap',      formula:'D_outer (contour)  [mm]',   std:'TS EN 60811-202' },
-    { name:'eksen_kacik.', formula:'|O1−O2|  [mm]',             std:'TS EN 60811-202' },
+    { id:'n1', label:'tmin (min kalınlık)',         expression:'tmin = min(t₁,…,t₆)', standard:'TS EN 60811-202' },
+    { id:'n2', label:'tmax (max kalınlık)',         expression:'tmax = max(t₁,…,t₆)', standard:'TS EN 60811-202' },
+    { id:'n3', label:'Eksen kaçıklığı |O1-O2|',    expression:'e = |O1-O2|  [mm]', standard:'TS EN 60811-202' },
+    { id:'n4', label:'İç çap',                     expression:'D_inner = 2×r_iletken', standard:'TS EN 60811-202' },
+    { id:'n5', label:'Dış çap',                    expression:'D_outer = 2×r_dış', standard:'TS EN 60811-202' },
   ],
   AER: [
-    { name:'tmin',        formula:'min izolasyon kalınlığı', std:'TS 11654' },
-    { name:'tmax',        formula:'max izolasyon kalınlığı', std:'TS 11654' },
-    { name:'O1',          formula:'İletken ağırlık merkezi', std:'TS 11654' },
-    { name:'O2',          formula:'İzolasyon ağırlık merkezi',std:'TS 11654'},
-    { name:'Çb',          formula:'Çıkıntı boyu  [mm]',      std:'TS 11654' },
-    { name:'Çm',          formula:'Çıkıntılar arası mesafe [mm]', std:'TS 11654' },
-    { name:'eksen_kacik.',formula:'|O1−O2|  [mm]',           std:'TS 11654' },
+    { id:'a1', label:'tmin (min izolasyon)',        expression:'tmin = min(t₁,…,t₆)', standard:'TS 11654' },
+    { id:'a2', label:'tmax (max izolasyon)',        expression:'tmax = max(t₁,…,t₆)', standard:'TS 11654' },
+    { id:'a3', label:'Çıkıntı boyu (Çb)',           expression:'Çb = h_çıkıntı - h_nominal  [mm]', standard:'TS 11654' },
+    { id:'a4', label:'Çıkıntılar arası mesafe (Çm)',expression:'Çm = arc(Ö₁,Ö₂)  [mm]', standard:'TS 11654' },
+    { id:'a5', label:'Eksen kaçıklığı',             expression:'e = |O1-O2|  [mm]', standard:'TS 11654' },
   ],
   NYIF: [
-    { name:'tmin', formula:'min izolasyon kalınlığı', std:'TS EN 60811-202' },
-    { name:'tmax', formula:'max izolasyon kalınlığı', std:'TS EN 60811-202' },
-    { name:'y1',   formula:'Köprü genişliği  [mm]',   std:'TS EN 60811-202' },
-    { name:'y2',   formula:'Köprü yüksekliği [mm]',  std:'TS EN 60811-202' },
+    { id:'ny1', label:'tmin (min kalınlık)',        expression:'tmin = min(t₁,…,t₆)', standard:'TS EN 60811-202' },
+    { id:'ny2', label:'tmax (max kalınlık)',        expression:'tmax = max(t₁,…,t₆)', standard:'TS EN 60811-202' },
+    { id:'ny3', label:'y1 (köprü genişliği)',       expression:'y1 = sol-sağ damar arası  [mm]', standard:'TS EN 60811-202' },
+    { id:'ny4', label:'y2 (köprü yüksekliği)',      expression:'y2 = köprü yüksekliği  [mm]', standard:'TS EN 60811-202' },
   ],
   YASSI_TTR: [
-    { name:'t1–t6', formula:'6 noktada duvar kalınlığı', std:'TS EN 60811-202' },
-    { name:'t7–t8', formula:'2 ek ölçüm noktası',        std:'TS EN 60811-202' },
-    { name:'y1',    formula:'Kablo yüksekliği [mm]',     std:'TS EN 60811-202' },
-    { name:'y2',    formula:'Kablo genişliği  [mm]',     std:'TS EN 60811-202' },
+    { id:'t1', label:'t1_max = max(t₁,…,t₆)',      expression:'t1max = max(t₁,t₂,t₃,t₄,t₅,t₆)', standard:'TS EN 60811-202' },
+    { id:'t2', label:'t1_min = min(t₁,…,t₆)',      expression:'t1min = min(t₁,t₂,t₃,t₄,t₅,t₆)', standard:'TS EN 60811-202' },
+    { id:'t3', label:'t1_ort = ortalama',           expression:'t1ort = (t₁+t₂+…+t₆)/6', standard:'TS EN 60811-202' },
+    { id:'t4', label:'t2_max = max(t₇,t₈)',        expression:'t2max = max(t₇,t₈)', standard:'TS EN 60811-202' },
+    { id:'t5', label:'t2_min = min(t₇,t₈)',        expression:'t2min = min(t₇,t₈)', standard:'TS EN 60811-202' },
+    { id:'t6', label:'y1 (kablo yüksekliği)',       expression:'y1  [mm]', standard:'TS EN 60811-202' },
+    { id:'t7', label:'y2 (kablo genişliği)',        expression:'y2  [mm]', standard:'TS EN 60811-202' },
   ],
   SEKTOR: [
-    { name:'tmin',         formula:'min izolasyon kalınlığı',    std:'TS EN 60811-202' },
-    { name:'O1',           formula:'İletken ağırlık merkezi',    std:'TS EN 60811-202' },
-    { name:'O2',           formula:'Yalıtım ağırlık merkezi',   std:'TS EN 60811-202' },
-    { name:'eksen_kacik.', formula:'|O1−O2|  [mm]',             std:'TS EN 60811-202' },
+    { id:'sk1', label:'tmin (min kalınlık)',        expression:'tmin = min(t₁,…,t₆)', standard:'TS EN 60811-202' },
+    { id:'sk2', label:'Eksen kaçıklığı |O1-O2|',   expression:'e = |O1-O2|  [mm]', standard:'TS EN 60811-202' },
   ],
 };
 
+const STORAGE_KEY = 'cable_formulas_v1';
+
+function loadFormulas(): Record<string, Formula[]> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : { ...DEFAULT_FORMULAS };
+  } catch {
+    return { ...DEFAULT_FORMULAS };
+  }
+}
+
+function saveFormulas(data: Record<string, Formula[]>) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
 export const AdminScreen: React.FC = () => {
   const { lang, setActiveScreen } = useAppStore();
-  const [activeTab, setActiveTab] = useState(0);
-  const [activeCable, setActiveCable] = useState<CableTypeCategory | null>(null);
+  const t = translations[lang];
 
-  const cableParams = activeCable ? (cableParamMap[activeCable] ?? []) : [];
+  const [formulas, setFormulas] = useState<Record<string, Formula[]>>(loadFormulas);
+  const [activeCable, setActiveCable] = useState<CableTypeCategory>('XLPE_HV' as CableTypeCategory);
+
+  // Add-formula form state
+  const [showAdd, setShowAdd] = useState(false);
+  const [newLabel, setNewLabel] = useState('');
+  const [newExpr, setNewExpr] = useState('');
+  const [newStd, setNewStd] = useState('');
+
+  // persist to localStorage whenever formulas change
+  useEffect(() => {
+    saveFormulas(formulas);
+  }, [formulas]);
+
+  const activeFormulas: Formula[] = formulas[activeCable] ?? [];
+
+  const addFormula = () => {
+    if (!newLabel.trim() || !newExpr.trim()) return;
+    const updated = {
+      ...formulas,
+      [activeCable]: [
+        ...activeFormulas,
+        { id: `custom_${Date.now()}`, label: newLabel.trim(), expression: newExpr.trim(), standard: newStd.trim() || undefined },
+      ],
+    };
+    setFormulas(updated);
+    setNewLabel(''); setNewExpr(''); setNewStd('');
+    setShowAdd(false);
+  };
+
+  const removeFormula = (id: string) => {
+    setFormulas({
+      ...formulas,
+      [activeCable]: activeFormulas.filter(f => f.id !== id),
+    });
+  };
+
+  const resetToDefaults = () => {
+    setFormulas({ ...formulas, [activeCable]: DEFAULT_FORMULAS[activeCable] ?? [] });
+  };
+
+  const activeCableProfile = CABLE_PROFILES.find(p => p.id === activeCable);
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'calc(100vh - 62px)', background:'#f0f2f0' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 54px)', background: '#eef0ee' }}>
 
-      {/* Üst çubuk */}
+      {/* Üst bar */}
       <div style={{
-        display:'flex', alignItems:'center', justifyContent:'space-between',
-        padding:'8px 16px', background:'#fff', borderBottom:'2px solid #4caf50',
+        padding: '8px 16px', background: '#fff',
+        borderBottom: '2px solid #3d8b40',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        {/* Formül sekmeleri — tıpkı VELOX'taki gibi */}
-        <div style={{ display:'flex', gap:2 }}>
-          {formulaTabs.map((tab, idx) => (
-            <button
-              key={tab.name}
-              onClick={() => setActiveTab(idx)}
-              style={{
-                padding:'7px 18px',
-                background: activeTab === idx ? '#fff' : '#e8ebe8',
-                border:`1px solid ${activeTab === idx ? '#4caf50' : '#d0d7d0'}`,
-                borderBottom: activeTab === idx ? '2px solid #fff' : '1px solid #d0d7d0',
-                color: activeTab === idx ? '#2e7d32' : '#445544',
-                fontWeight: activeTab === idx ? 700 : 500,
-                fontSize:13, cursor:'pointer', borderRadius:'6px 6px 0 0',
-                marginBottom: activeTab === idx ? -2 : 0,
-              }}
-            >
-              {tab.name}
-            </button>
-          ))}
+        <div style={{ fontWeight: 700, fontSize: 15, color: '#1a2a1a' }}>
+          ⚙ {t.adminPanel} — {t.formulaManagement}
         </div>
         <button onClick={() => setActiveScreen('measurement')} style={{
-          padding:'6px 14px', background:'#e8ebe8', border:'1px solid #d0d7d0',
-          borderRadius:5, color:'#445544', fontWeight:600, fontSize:12,
+          padding: '5px 14px', background: '#f0f2f0', border: '1px solid #c8d0c8',
+          borderRadius: 4, fontSize: 12, fontWeight: 600, color: '#4a5a4a',
         }}>← Geri</button>
       </div>
 
-      <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-        {/* ── Sol: Formül grid (beyaz arka plan) ── */}
-        <div style={{ flex:1, overflowY:'auto', padding:20, background:'#fff' }}>
-          {activeCable && (
-            <div style={{
-              marginBottom:16, padding:'12px 16px',
-              background:'#e8f5e9', border:'1px solid #c8e6c9',
-              borderRadius:8,
-            }}>
-              <div style={{ color:'#2e7d32', fontWeight:700, fontSize:13, marginBottom:8 }}>
-                📋 {CABLE_PROFILES.find(p=>p.id===activeCable)?.[lang==='tr'?'nameTr':'nameEn']} — Ölçüm Parametreleri (EK_2)
-              </div>
-              <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
-                {cableParams.map((p, i) => (
-                  <div key={i} style={{
-                    background:'#fff', border:'1px solid #c8e6c9', borderRadius:6, padding:'8px 12px',
-                  }}>
-                    <div style={{ color:'#1565c0', fontWeight:700, fontSize:12 }}>{p.name}</div>
-                    <div style={{ color:'#445544', fontSize:11, fontFamily:'monospace', margin:'3px 0' }}>{p.formula}</div>
-                    <div style={{ color:'#81c784', fontSize:9 }}>{p.std}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* VELOX tarzı formül kartları — beyaz kart, kırmızı formül metni */}
-          <div style={{
-            display:'grid',
-            gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))',
-            gap:12,
-          }}>
-            {formulaTabs[activeTab].items.map((item, idx) => (
-              <div key={idx} style={{
-                background:'#fff',
-                border:'1px solid #d8ddd8',
-                borderRadius:8,
-                padding:'16px',
-                boxShadow:'0 1px 4px rgba(0,0,0,0.06)',
-              }}>
-                {/* Formül — kırmızı renkte, VELOX'taki gibi */}
-                <div style={{
-                  fontSize:16,
-                  fontWeight:700,
-                  color:'#c62828',
-                  fontFamily:'serif',
-                  textAlign:'center',
-                  padding:'10px 4px',
-                  borderBottom:'1px solid #f0f0f0',
-                  marginBottom:8,
-                  letterSpacing:.3,
-                }}>
-                  {item.formula}
-                </div>
-                <div style={{ fontSize:11, color:'#445544', textAlign:'center', fontWeight:600 }}>
-                  {item.label}
-                </div>
-                {item.std && (
-                  <div style={{
-                    marginTop:6, fontSize:9, color:'#2e7d32', background:'#e8f5e9',
-                    padding:'2px 6px', borderRadius:3, textAlign:'center',
-                  }}>
-                    {item.std}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Sağ: Kablo tipi listesi + mini canvas ── */}
-        <div style={{
-          width:300, borderLeft:'1px solid #d0d7d0', background:'#f8faf8',
-          display:'flex', flexDirection:'column', overflow:'hidden',
-        }}>
-          {/* Kablo tipi sekmeleri (Round 1L / Round 2L tarzı) */}
-          <div style={{
-            padding:'8px 10px', background:'#e8ebe8',
-            borderBottom:'1px solid #d0d7d0', display:'flex', flexWrap:'wrap', gap:4,
-          }}>
-            {CABLE_PROFILES.map(p => (
-              <button
-                key={p.id}
-                onClick={() => setActiveCable(activeCable === p.id as CableTypeCategory ? null : p.id as CableTypeCategory)}
-                style={{
-                  padding:'4px 10px', fontSize:10, fontWeight:700,
-                  background: activeCable === p.id ? '#4caf50' : '#fff',
-                  border:`1px solid ${activeCable === p.id ? '#4caf50' : '#d0d7d0'}`,
-                  color: activeCable === p.id ? '#fff' : '#445544',
-                  borderRadius:4, cursor:'pointer',
-                }}
-              >
-                {p.id.replace('_', ' ')}
-              </button>
-            ))}
+        {/* ── Sol: Kablo tipi listesi ── */}
+        <div style={{ width: 260, borderRight: '1px solid #d0d8d0', background: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#7a8a7a', borderBottom: '1px solid #e8ebe8', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+            Kablo Tipleri
           </div>
 
-          {/* Seçili kablo canvas önizlemesi */}
-          <div style={{
-            background:'#1a1a1a', display:'flex', alignItems:'center', justifyContent:'center',
-            padding:12, borderBottom:'1px solid #2a2a2a',
-          }}>
-            {activeCable
-              ? <CableCanvas cableType={activeCable} width={260} height={200}/>
-              : <div style={{ color:'#555', fontSize:11 }}>Kablo tipine tıkla</div>
-            }
+          {/* Mini canvas önizleme - seçili kablo */}
+          <div style={{ background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 10 }}>
+            <CableCanvas cableType={activeCable} width={220} height={170} />
           </div>
 
           {/* Kablo listesi */}
-          <div style={{ overflowY:'auto', flex:1 }}>
+          <div style={{ overflowY: 'auto', flex: 1 }}>
             {CABLE_PROFILES.map(p => {
               const active = activeCable === p.id;
               return (
                 <button
                   key={p.id}
-                  onClick={() => setActiveCable(active ? null : p.id as CableTypeCategory)}
+                  onClick={() => { setActiveCable(p.id as CableTypeCategory); setShowAdd(false); }}
                   style={{
-                    display:'flex', alignItems:'center', gap:10, width:'100%',
-                    padding:'10px 12px', border:'none',
-                    borderBottom:'1px solid #e8ebe8',
+                    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                    padding: '9px 12px', border: 'none', borderBottom: '1px solid #eee',
                     background: active ? '#e8f5e9' : 'transparent',
-                    borderLeft: active ? '3px solid #4caf50' : '3px solid transparent',
-                    cursor:'pointer', textAlign:'left',
+                    borderLeft: `3px solid ${active ? '#3d8b40' : 'transparent'}`,
+                    cursor: 'pointer', textAlign: 'left',
                   }}
                 >
-                  <CableIcon type={p.id as CableTypeCategory}/>
                   <div>
-                    <div style={{ fontSize:11, fontWeight:700, color: active ? '#2e7d32' : '#1a2a1a' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: active ? '#2e7d32' : '#1a2a1a' }}>
                       {lang === 'tr' ? p.nameTr : p.nameEn}
                     </div>
-                    <div style={{ fontSize:9, color:'#778877' }}>{p.standard}</div>
+                    <div style={{ fontSize: 9, color: '#7a8a7a' }}>{p.standard}</div>
+                    <div style={{ fontSize: 9, color: '#3d8b40', marginTop: 1 }}>
+                      {(formulas[p.id] ?? []).length} formül
+                    </div>
                   </div>
                 </button>
               );
             })}
+          </div>
+        </div>
+
+        {/* ── Sağ: Formül yönetim paneli ── */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' }}>
+
+          {/* kablo başlığı + butonlar */}
+          <div style={{
+            padding: '10px 18px', background: '#f8faf8',
+            borderBottom: '1px solid #e0e5e0',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#1a2a1a' }}>
+                {activeCableProfile ? (lang === 'tr' ? activeCableProfile.nameTr : activeCableProfile.nameEn) : ''}
+              </div>
+              <div style={{ fontSize: 11, color: '#7a8a7a' }}>
+                {t.formulaFor} — {activeCableProfile?.standard}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={resetToDefaults} style={{
+                padding: '5px 12px', background: '#fff', border: '1px solid #c8d0c8',
+                borderRadius: 4, fontSize: 11, color: '#4a5a4a',
+              }}>↺ Varsayılana Sıfırla</button>
+              <button onClick={() => setShowAdd(!showAdd)} style={{
+                padding: '5px 14px', background: '#3d8b40', border: 'none',
+                borderRadius: 4, color: '#fff', fontWeight: 700, fontSize: 12,
+              }}>+ {t.addFormula}</button>
+            </div>
+          </div>
+
+          {/* Yeni formül ekleme formu */}
+          {showAdd && (
+            <div style={{
+              padding: '14px 18px', background: '#f1f8f1',
+              borderBottom: '1px solid #c8e6c9',
+              display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end',
+            }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#4a5a4a' }}>{t.formulaLabel}</label>
+                <input
+                  value={newLabel}
+                  onChange={e => setNewLabel(e.target.value)}
+                  placeholder="örn: tmin_xlpe"
+                  style={{ padding: '6px 10px', border: '1px solid #c8d0c8', borderRadius: 4, fontSize: 12, width: 160 }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#4a5a4a' }}>{t.formulaExpr}</label>
+                <input
+                  value={newExpr}
+                  onChange={e => setNewExpr(e.target.value)}
+                  placeholder="örn: (tmax-tmin)/tmax × 100"
+                  style={{ padding: '6px 10px', border: '1px solid #c8d0c8', borderRadius: 4, fontSize: 12, width: 250 }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#4a5a4a' }}>{t.formulaStd}</label>
+                <input
+                  value={newStd}
+                  onChange={e => setNewStd(e.target.value)}
+                  placeholder="TS EN 60811-201"
+                  style={{ padding: '6px 10px', border: '1px solid #c8d0c8', borderRadius: 4, fontSize: 12, width: 160 }}
+                />
+              </div>
+              <button onClick={addFormula} style={{
+                padding: '7px 18px', background: '#3d8b40', border: 'none',
+                borderRadius: 4, color: '#fff', fontWeight: 700, fontSize: 12, height: 34,
+              }}>{t.saveFormula}</button>
+              <button onClick={() => setShowAdd(false)} style={{
+                padding: '7px 14px', background: '#f0f2f0', border: '1px solid #c8d0c8',
+                borderRadius: 4, fontSize: 12, color: '#4a5a4a', height: 34,
+              }}>{t.cancel}</button>
+            </div>
+          )}
+
+          {/* Formül listesi — VELOX stili kartlar (beyaz zemin, kırmızı formül ifadesi) */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
+            {activeFormulas.length === 0 ? (
+              <div style={{ color: '#999', fontSize: 13, padding: 20, textAlign: 'center' }}>
+                Bu kablo tipi için henüz formül eklenmemiş.
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+                {activeFormulas.map(f => (
+                  <div key={f.id} style={{
+                    background: '#fff', border: '1px solid #dde0dd',
+                    borderRadius: 8, padding: '14px 16px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                    display: 'flex', flexDirection: 'column', gap: 8,
+                  }}>
+                    {/* Formül ifadesi — EK_2/VELOX'taki gibi kırmızı, büyük */}
+                    <div style={{
+                      fontSize: 15, fontWeight: 700,
+                      color: '#c62828',
+                      fontFamily: 'Cambria, Georgia, serif',
+                      padding: '8px 0 8px',
+                      borderBottom: '1px solid #f0f0f0',
+                      textAlign: 'center',
+                      letterSpacing: 0.3,
+                    }}>
+                      {f.expression}
+                    </div>
+
+                    {/* etiket + standart + sil butonu */}
+                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: '#445544', fontWeight: 600 }}>{f.label}</div>
+                        {f.standard && (
+                          <div style={{
+                            marginTop: 3, fontSize: 9, color: '#2e7d32',
+                            background: '#e8f5e9', padding: '2px 6px', borderRadius: 3, display: 'inline-block',
+                          }}>{f.standard}</div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => removeFormula(f.id)}
+                        title={t.removeFormula}
+                        style={{
+                          padding: '3px 9px', background: '#fff5f5',
+                          border: '1px solid #ffcdd2', borderRadius: 4,
+                          color: '#c62828', fontSize: 11, cursor: 'pointer',
+                        }}
+                      >✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
