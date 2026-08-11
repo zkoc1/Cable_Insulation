@@ -167,8 +167,8 @@ export const AdminScreen: React.FC = () => {
           </div>
 
           {/* Mini canvas önizleme - seçili kablo */}
-          <div style={{ background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 10 }}>
-            <CableCanvas cableType={activeCable} width={220} height={170} />
+          <div style={{ background: '#f8f9fa', borderBottom: '1px solid #e8ebe8', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+            <CableCanvas cableType={activeCable} width={180} height={140} thumbnail />
           </div>
 
           {/* Kablo listesi */}
