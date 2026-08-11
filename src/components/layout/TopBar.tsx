@@ -11,24 +11,43 @@ export const TopBar: React.FC = () => {
   return (
     <div style={{
       height: 54,
-      background: '#243324',
+      background: '#1b261b',
       display: 'flex',
       alignItems: 'center',
       padding: '0 16px',
-      gap: 16,
+      gap: 12,
       borderBottom: '2px solid #3d8b40',
       flexShrink: 0,
     }}>
-      {/* Başlık */}
-      <div style={{ color: '#e8f5e9', fontWeight: 600, fontSize: 13, letterSpacing: 0.2 }}>
+      {/* Sleek Industrial Logo SVG */}
+      <div style={{
+        width: 32,
+        height: 32,
+        borderRadius: 6,
+        background: '#243324',
+        border: '1px solid #3d8b40',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" stroke="#4caf50" strokeWidth="2.5" fill="#1b261b" />
+          <circle cx="12" cy="12" r="6" fill="#3d8b40" stroke="#81c784" strokeWidth="1" />
+          <circle cx="12" cy="12" r="2.5" fill="#ffffff" />
+        </svg>
+      </div>
+
+      {/* Program Title */}
+      <div style={{ color: '#e8f5e9', fontWeight: 700, fontSize: 13, letterSpacing: 0.3 }}>
         {APP_TITLE}
       </div>
 
-      <div style={{ width: 1, height: 26, background: '#3a4a3a' }} />
+      <div style={{ width: 1, height: 26, background: '#3a4a3a', margin: '0 4px' }} />
 
-      {/* Giriş bilgileri */}
+      {/* User Session Info */}
       {session.isLoggedIn && (
-        <div style={{ display: 'flex', gap: 16, flex: 1 }}>
+        <div style={{ display: 'flex', gap: 20, flex: 1 }}>
           <div>
             <div style={{ color: '#81c784', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5 }}>
               {t.operator}
@@ -48,7 +67,7 @@ export const TopBar: React.FC = () => {
         </div>
       )}
 
-      {/* Sağ taraf */}
+      {/* Controls */}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
         <button
           onClick={() => setLang(lang === 'tr' ? 'en' : 'tr')}
