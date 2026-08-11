@@ -76,22 +76,22 @@ export const MeasurementScreen: React.FC = () => {
       rawData = cnv.toDataURL('image/jpeg', 0.9);
     }
 
-    // Composite optical laser measurement lines onto the snapshot image
-    const composited = await MeasurementOverlayService.createCompositedSnapshot(
+    // Composite optical laser measurement lines and colorized layers onto the snapshot image
+    const { imagePath, measurementData } = await MeasurementOverlayService.createCompositedSnapshot(
       rawData,
       targetCableType,
       640,
       480
     );
 
-    setSnapshotData(composited);
+    setSnapshotData(imagePath);
     setCamState('snapshot');
 
     setTimeout(() => {
       setIsScanning(false);
     }, 900);
 
-    return composited;
+    return { imagePath, measurementData };
   }, [camState, snapshotData]);
 
   // Handle cable selection change
@@ -104,9 +104,9 @@ export const MeasurementScreen: React.FC = () => {
 
   // Run measurement and proceed to results
   const runMeasurement = async () => {
-    let finalImage = snapshotData;
-    if (camState === 'live' || !finalImage) {
-      finalImage = await performOpticalScan(selectedCable);
+    let scanRes = { imagePath: snapshotData || '', measurementData: undefined as any };
+    if (camState === 'live' || !snapshotData) {
+      scanRes = await performOpticalScan(selectedCable);
     }
 
     const result = MeasurementCalculationService.calculate(
@@ -114,7 +114,8 @@ export const MeasurementScreen: React.FC = () => {
       session.username,
       orderNumber,
       notes,
-      finalImage ?? undefined
+      scanRes.imagePath || undefined,
+      scanRes.measurementData
     );
 
     setCurrentResult(result);
