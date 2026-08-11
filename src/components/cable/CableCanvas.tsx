@@ -6,15 +6,16 @@ interface Props {
   cableType: CableTypeCategory;
   width?: number;
   height?: number;
-  /** When true, draws the industrial vector schematic thumbnail (reference screenshot style) */
+  /** When true, draws the industrial vector schematic thumbnail (matching reference screenshot) */
   thumbnail?: boolean;
 }
 
 /**
  * Draws cable cross-section diagrams matching EK_2 specification & reference UI.
  * 
- * - Full Mode: Dark background with full measurement dimensions, O1/O2 markers & radial lines.
- * - Thumbnail Mode: Crisp light-card graphic matching industrial cable QC UI (Dark sheath, green insulation layer, white conductor core).
+ * - Thumbnail Mode: Renders exact industrial geometry matching reference screenshot
+ *   (Multi-core trefoil, rounded sector triangle, 2-core dumbbell, flat 3-core, AER ridges).
+ * - Full Mode: Microscope view with measurement guidelines, O1/O2 markers & dimension text.
  */
 export const CableCanvas: React.FC<Props> = ({
   cableType,
@@ -40,13 +41,13 @@ export const CableCanvas: React.FC<Props> = ({
     ctx.fillStyle = thumbnail ? '#f8f9fa' : '#111111';
     ctx.fillRect(0, 0, W, H);
 
-    // Color definitions
-    const cDarkSheath = thumbnail ? '#2c2c2c' : '#2a2a2a';
-    const cGreenLayer = thumbnail ? '#43a047' : '#3d8b40';
+    // Colors
+    const cDarkSheath = thumbnail ? '#262626' : '#2a2a2a';
+    const cGreenLayer = thumbnail ? '#388e3c' : '#43a047';
     const cWhiteCore  = thumbnail ? '#ffffff' : '#eeeeee';
     const cStroke     = thumbnail ? '#1a1a1a' : '#ddd';
 
-    // Helper circle
+    // Helper: Circle
     const drawCircle = (x: number, y: number, r: number, fill: string, stroke?: string, lw = 1.5) => {
       ctx.beginPath();
       ctx.arc(x, y, Math.max(1, r), 0, Math.PI * 2);
@@ -59,105 +60,134 @@ export const CableCanvas: React.FC<Props> = ({
       }
     };
 
-    // --- THUMBNAIL GRAPHIC RENDERER (Matches Reference Screenshot) ---
+    // Helper: Rounded Triangle for Sector Cables (Matches Row 4 of reference image)
+    const drawRoundedTriangle = (x: number, y: number, r: number, fill: string, stroke?: string, lw = 1.5) => {
+      ctx.beginPath();
+      const angles = [-Math.PI / 2, (Math.PI * 1) / 6, (Math.PI * 5) / 6];
+      const p1 = { x: x + Math.cos(angles[0]) * r, y: y + Math.sin(angles[0]) * r };
+      const p2 = { x: x + Math.cos(angles[1]) * r, y: y + Math.sin(angles[1]) * r };
+      const p3 = { x: x + Math.cos(angles[2]) * r, y: y + Math.sin(angles[2]) * r };
+
+      const cornerRadius = r * 0.4;
+      ctx.moveTo((p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
+      ctx.arcTo(p2.x, p2.y, p3.x, p3.y, cornerRadius);
+      ctx.arcTo(p3.x, p3.y, p1.x, p1.y, cornerRadius);
+      ctx.arcTo(p3.x, p3.y, p1.x, p1.y, cornerRadius);
+      ctx.closePath();
+
+      ctx.fillStyle = fill;
+      ctx.fill();
+      if (stroke) {
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = lw;
+        ctx.stroke();
+      }
+    };
+
+    // --- THUMBNAIL GRAPHIC RENDERER (Matches Reference Screenshot Row by Row) ---
     if (thumbnail) {
       if (cableType === C.XLPE_HV) {
-        // Round outer sheath + green insulation ring + white conductor center
-        drawCircle(cx, cy, 26, cDarkSheath, cStroke, 1.5);
-        drawCircle(cx, cy, 20, cGreenLayer);
+        // Single Round: Dark sheath -> Green insulation ring -> Dark semiconductor -> White core
+        drawCircle(cx, cy, 25, cDarkSheath, cStroke, 1.5);
+        drawCircle(cx, cy, 19, cGreenLayer);
         drawCircle(cx, cy, 11, cDarkSheath);
-        drawCircle(cx, cy, 6, cWhiteCore);
+        drawCircle(cx, cy, 5.5, cWhiteCore);
 
       } else if (cableType === C.TESISAT_SINGLE_COLOR) {
-        // Round outer sheath + yellow/green split insulation ring + white core
-        drawCircle(cx, cy, 26, cDarkSheath, cStroke, 1.5);
-        
+        // Single Round Yellow-Green: Dark sheath -> Yellow/Green split ring -> White core
+        drawCircle(cx, cy, 25, cDarkSheath, cStroke, 1.5);
+
         ctx.save();
-        ctx.beginPath(); ctx.arc(cx, cy, 20, Math.PI * 0.2, Math.PI * 1.2);
-        ctx.fillStyle = '#fbc02d'; ctx.fill(); // yellow arc
-        ctx.beginPath(); ctx.arc(cx, cy, 20, Math.PI * 1.2, Math.PI * 2.2);
-        ctx.fillStyle = cGreenLayer; ctx.fill(); // green arc
+        ctx.beginPath(); ctx.arc(cx, cy, 19, Math.PI * 0.2, Math.PI * 1.2);
+        ctx.fillStyle = '#fbc02d'; ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, cy, 19, Math.PI * 1.2, Math.PI * 2.2);
+        ctx.fillStyle = cGreenLayer; ctx.fill();
         ctx.restore();
 
-        drawCircle(cx, cy, 10, cWhiteCore);
+        drawCircle(cx, cy, 9, cWhiteCore);
 
       } else if (cableType === C.TESISAT_MULTI_CORE) {
-        // 3-lobed trefoil outer sheath + 3 green cores with white centers
-        drawCircle(cx, cy, 26, cDarkSheath, cStroke, 1.5);
+        // 3-Core Trefoil: 3 outer lobes forming trefoil -> 3 green insulation rings -> 3 white cores
+        const dist = 9.5;
         const angles = [-Math.PI / 2, Math.PI / 6, (5 * Math.PI) / 6];
+
+        // 3-lobe outer dark sheath
+        ctx.beginPath();
         angles.forEach(a => {
-          const px = cx + Math.cos(a) * 11;
-          const py = cy + Math.sin(a) * 11;
-          drawCircle(px, py, 9, cGreenLayer);
+          const px = cx + Math.cos(a) * dist;
+          const py = cy + Math.sin(a) * dist;
+          ctx.arc(px, py, 14, 0, Math.PI * 2);
+        });
+        ctx.fillStyle = cDarkSheath;
+        ctx.fill();
+
+        // 3 green insulation cores with white centers
+        angles.forEach(a => {
+          const px = cx + Math.cos(a) * dist;
+          const py = cy + Math.sin(a) * dist;
+          drawCircle(px, py, 8.5, cGreenLayer);
           drawCircle(px, py, 4, cWhiteCore);
         });
 
       } else if (cableType === C.TESISAT_NYAF_SOM) {
-        // Single round thick dark sheath + inner green ring + white core
-        drawCircle(cx, cy, 26, cDarkSheath, cStroke, 1.5);
-        drawCircle(cx, cy, 17, cGreenLayer);
-        drawCircle(cx, cy, 8, cWhiteCore);
+        // Single Round Stranded/Solid: Thick dark sheath -> Green insulation -> White center multi-strand
+        drawCircle(cx, cy, 25, cDarkSheath, cStroke, 1.5);
+        drawCircle(cx, cy, 17.5, cGreenLayer);
+        drawCircle(cx, cy, 8.5, cWhiteCore);
+
+        // Small multi-strand dots
+        for (let i = 0; i < 6; i++) {
+          const a = (i * 60 * Math.PI) / 180;
+          drawCircle(cx + Math.cos(a) * 4.5, cy + Math.sin(a) * 4.5, 1.5, '#777777');
+        }
 
       } else if (cableType === C.AER) {
-        // Round with 3 outer bumps (ridges) + green insulation ring + white core
+        // AER Aerial Ridged: Dark circle with 3 outer bumps -> Green insulation -> White core
         for (let i = 0; i < 3; i++) {
           const a = (i * 120 * Math.PI) / 180 - Math.PI / 2;
-          drawCircle(cx + Math.cos(a) * 24, cy + Math.sin(a) * 24, 5, cDarkSheath);
+          drawCircle(cx + Math.cos(a) * 23, cy + Math.sin(a) * 23, 5, cDarkSheath);
         }
-        drawCircle(cx, cy, 22, cDarkSheath, cStroke, 1.5);
-        drawCircle(cx, cy, 15, cGreenLayer);
+        drawCircle(cx, cy, 21, cDarkSheath, cStroke, 1.5);
+        drawCircle(cx, cy, 14.5, cGreenLayer);
         drawCircle(cx, cy, 7, cWhiteCore);
 
       } else if (cableType === C.NYIF) {
-        // Flat 2-core figure-8 shape
-        const w = 44, h = 24;
+        // 2-Core Dumbbell (Figure-8): 2 connected dark circles -> 2 green rings -> 2 white cores
         ctx.beginPath();
-        ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 12);
-        ctx.fillStyle = cDarkSheath; ctx.fill();
-        ctx.strokeStyle = cStroke; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.arc(cx - 11, cy, 14, 0, Math.PI * 2);
+        ctx.arc(cx + 11, cy, 14, 0, Math.PI * 2);
+        ctx.fillStyle = cDarkSheath;
+        ctx.fill();
 
-        drawCircle(cx - 11, cy, 8, cGreenLayer);
-        drawCircle(cx - 11, cy, 4, cWhiteCore);
-        drawCircle(cx + 11, cy, 8, cGreenLayer);
-        drawCircle(cx + 11, cy, 4, cWhiteCore);
+        drawCircle(cx - 11, cy, 9, cGreenLayer);
+        drawCircle(cx - 11, cy, 4.5, cWhiteCore);
+        drawCircle(cx + 11, cy, 9, cGreenLayer);
+        drawCircle(cx + 11, cy, 4.5, cWhiteCore);
 
       } else if (cableType === C.YASSI_TTR) {
-        // Capsule flat 3-core
-        const w = 52, h = 22;
+        // Flat 3-Core: Flat rectangle sheath -> 3 inline green insulation rings -> 3 white cores
+        const w = 50, h = 20;
         ctx.beginPath();
-        ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 10);
+        ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 9);
         ctx.fillStyle = cDarkSheath; ctx.fill();
         ctx.strokeStyle = cStroke; ctx.lineWidth = 1.5; ctx.stroke();
 
-        [-16, 0, 16].forEach(offset => {
-          drawCircle(cx + offset, cy, 7, cGreenLayer);
-          drawCircle(cx + offset, cy, 3.5, cWhiteCore);
+        [-15, 0, 15].forEach(offset => {
+          drawCircle(cx + offset, cy, 6.5, cGreenLayer);
+          drawCircle(cx + offset, cy, 3, cWhiteCore);
         });
 
       } else if (cableType === C.SEKTOR) {
-        // 3 Sector shape
-        const secA = (2 * Math.PI) / 3;
-        for (let i = 0; i < 3; i++) {
-          const a = i * secA - Math.PI / 2;
-          ctx.beginPath();
-          ctx.moveTo(cx, cy);
-          ctx.arc(cx, cy, 24, a - secA / 2, a + secA / 2);
-          ctx.closePath();
-          ctx.fillStyle = cDarkSheath; ctx.fill();
-          ctx.strokeStyle = cStroke; ctx.lineWidth = 1.5; ctx.stroke();
-
-          const mx = cx + Math.cos(a) * 12;
-          const my = cy + Math.sin(a) * 12;
-          drawCircle(mx, my, 5, cGreenLayer);
-          drawCircle(mx, my, 2.5, cWhiteCore);
-        }
+        // Rounded Sector Triangle (Matches Row 4 of reference image)
+        drawRoundedTriangle(cx, cy + 2, 27, cDarkSheath, cStroke, 1.5);
+        drawRoundedTriangle(cx, cy + 2, 19, cGreenLayer);
+        drawRoundedTriangle(cx, cy + 2, 10, cWhiteCore);
       }
       return;
     }
 
     // --- FULL MEASUREMENT CANVAS RENDERER (EK_2 Guidelines & Dark Microscope View) ---
 
-    // helper: dashed measurement line
     const dashLine = (x1: number, y1: number, x2: number, y2: number, color = '#facc15') => {
       ctx.save();
       ctx.setLineDash([5, 4]);
@@ -168,14 +198,12 @@ export const CableCanvas: React.FC<Props> = ({
       ctx.restore();
     };
 
-    // helper: label
     const label = (text: string, x: number, y: number, color = '#facc15') => {
       ctx.font = 'bold 11px Segoe UI, sans-serif';
       ctx.fillStyle = color;
       ctx.fillText(text, x, y);
     };
 
-    // helper: 6 radial measurement lines at 60° intervals
     const radial6 = (cx2: number, cy2: number, r1: number, r2: number) => {
       ctx.save();
       ctx.strokeStyle = '#facc15';
@@ -192,7 +220,6 @@ export const CableCanvas: React.FC<Props> = ({
       ctx.restore();
     };
 
-    // center cross marker for O1/O2
     const cross = (x: number, y: number, color: string, lbl: string) => {
       ctx.strokeStyle = color;
       ctx.lineWidth = 1.5;
@@ -345,21 +372,11 @@ export const CableCanvas: React.FC<Props> = ({
       label('y1', cx - bw / 2 + 10, cy + 8, '#4af');
 
     } else if (cableType === C.SEKTOR) {
-      const secAngle = (2 * Math.PI) / 3;
-      for (let i = 0; i < 3; i++) {
-        const startA = i * secAngle - secAngle / 2 - Math.PI / 2;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.arc(cx, cy, 150, startA, startA + secAngle);
-        ctx.closePath();
-        ctx.fillStyle = '#1e1e1e'; ctx.fill();
-        ctx.strokeStyle = '#bbb'; ctx.lineWidth = 2; ctx.stroke();
-
-        const mid = startA + secAngle / 2;
-        drawCircle(cx + Math.cos(mid) * 80, cy + Math.sin(mid) * 80, 32, '#333', '#aaa', 1.5);
-        label('tmin', cx + Math.cos(mid) * 115 - 14, cy + Math.sin(mid) * 115 + 4, '#facc15');
-      }
-      cross(cx, cy, '#4af', 'O2');
+      drawRoundedTriangle(cx, cy + 10, 160, '#1e1e1e', '#bbb', 2.5);
+      drawRoundedTriangle(cx, cy + 10, 110, '#333', '#43a047', 2);
+      drawRoundedTriangle(cx, cy + 10, 50, '#555', '#eee', 1.5);
+      label('tmin', cx + 60, cy + 30, '#facc15');
+      cross(cx, cy + 10, '#4af', 'O2');
     }
 
     // bottom note
