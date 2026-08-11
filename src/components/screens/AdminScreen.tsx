@@ -3,6 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { CABLE_PROFILES } from '../../core/data/profiles';
 import { translations } from '../../core/i18n/translations';
 import { CableCanvas } from '../cable/CableCanvas';
+import { CableIcon } from '../cable/CableIcon';
 import type { CableTypeCategory } from '../../core/interfaces/cable';
 
 // --- Type definitions ---
@@ -180,12 +181,15 @@ export const AdminScreen: React.FC = () => {
                   onClick={() => { setActiveCable(p.id as CableTypeCategory); setShowAdd(false); }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                    padding: '9px 12px', border: 'none', borderBottom: '1px solid #eee',
+                    padding: '8px 10px', border: 'none', borderBottom: '1px solid #eee',
                     background: active ? '#e8f5e9' : 'transparent',
                     borderLeft: `3px solid ${active ? '#3d8b40' : 'transparent'}`,
                     cursor: 'pointer', textAlign: 'left',
                   }}
                 >
+                  <div style={{ flexShrink: 0 }}>
+                    <CableIcon type={p.id as CableTypeCategory} />
+                  </div>
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 700, color: active ? '#2e7d32' : '#1a2a1a' }}>
                       {lang === 'tr' ? p.nameTr : p.nameEn}
