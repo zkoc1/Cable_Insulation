@@ -5,6 +5,7 @@ import { translations } from '../../core/i18n/translations';
 import { CableCanvas } from '../cable/CableCanvas';
 import { CableIcon } from '../cable/CableIcon';
 import { MeasurementCalculationService } from '../../services/MeasurementCalculationService';
+import { MeasurementOverlayService } from '../../services/MeasurementOverlayService';
 import type { CableTypeCategory } from '../../core/interfaces/cable';
 
 type CamState = 'off' | 'live' | 'snapshot';
@@ -27,11 +28,12 @@ export const MeasurementScreen: React.FC = () => {
   const [camState, setCamState] = useState<CamState>('off');
   const [camError, setCamError] = useState('');
   const [snapshotData, setSnapshotData] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
 
   const selected = CABLE_PROFILES.find(p => p.id === selectedCable);
   const now = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' });
 
-  // Start live camera feed via WebRTC
+  // Start live WebRTC camera stream
   const startCamera = useCallback(async () => {
     setCamError('');
     try {
@@ -50,33 +52,71 @@ export const MeasurementScreen: React.FC = () => {
     }
   }, [t.cameraError]);
 
-  // Stop camera stream
+  // Stop WebRTC camera stream
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach(tr => tr.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
     setCamState('off');
+    setIsScanning(false);
   }, []);
 
-  // Freeze current frame as snapshot
-  const takeSnapshot = useCallback(() => {
-    if (!videoRef.current || !snapCanvas.current) return;
-    const vid = videoRef.current;
-    const cnv = snapCanvas.current;
-    cnv.width = vid.videoWidth || 640;
-    cnv.height = vid.videoHeight || 480;
-    cnv.getContext('2d')?.drawImage(vid, 0, 0);
-    setSnapshotData(cnv.toDataURL('image/jpeg', 0.9));
-    setCamState('snapshot');
-    // keep stream alive so user can retake
-  }, []);
+  // Trigger optical light scan beam animation & capture snapshot
+  const performOpticalScan = useCallback(async (targetCableType: CableTypeCategory) => {
+    setIsScanning(true);
+    let rawData: string | null = snapshotData;
 
-  // Run measurement and go to result screen
-  const runMeasurement = () => {
-    const result = MeasurementCalculationService.calculate(
-      selectedCable, session.username, orderNumber, notes,
-      snapshotData ?? undefined
+    // If live camera is active, grab current video frame
+    if (videoRef.current && snapCanvas.current && camState === 'live') {
+      const vid = videoRef.current;
+      const cnv = snapCanvas.current;
+      cnv.width = vid.videoWidth || 640;
+      cnv.height = vid.videoHeight || 480;
+      cnv.getContext('2d')?.drawImage(vid, 0, 0);
+      rawData = cnv.toDataURL('image/jpeg', 0.9);
+    }
+
+    // Composite optical laser measurement lines onto the snapshot image
+    const composited = await MeasurementOverlayService.createCompositedSnapshot(
+      rawData,
+      targetCableType,
+      640,
+      480
     );
+
+    setSnapshotData(composited);
+    setCamState('snapshot');
+
+    setTimeout(() => {
+      setIsScanning(false);
+    }, 900);
+
+    return composited;
+  }, [camState, snapshotData]);
+
+  // Handle cable selection change
+  const handleSelectCable = (type: CableTypeCategory) => {
+    setSelectedCable(type);
+    if (camState === 'live') {
+      performOpticalScan(type);
+    }
+  };
+
+  // Run measurement and proceed to results
+  const runMeasurement = async () => {
+    let finalImage = snapshotData;
+    if (camState === 'live' || !finalImage) {
+      finalImage = await performOpticalScan(selectedCable);
+    }
+
+    const result = MeasurementCalculationService.calculate(
+      selectedCable,
+      session.username,
+      orderNumber,
+      notes,
+      finalImage ?? undefined
+    );
+
     setCurrentResult(result);
     stopCamera();
     setActiveScreen('result');
@@ -85,28 +125,29 @@ export const MeasurementScreen: React.FC = () => {
   return (
     <div style={{ display: 'flex', height: 'calc(100vh - 54px)', background: '#eef0ee' }}>
 
-      {/* ── Sol: Kamera / Kesit Görüntüsü ── */}
-      <div style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', background: '#111', minWidth: 0 }}>
+      {/* ── Sol: Kamera / Optik Ölçüm Ekranı ── */}
+      <div style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', background: '#0a0a0a', minWidth: 0, position: 'relative' }}>
 
-        {/* durum çubuğu */}
+        {/* Durum çubuğu */}
         <div style={{
-          height: 28, background: '#0a0a0a', display: 'flex',
+          height: 28, background: '#070707', display: 'flex',
           alignItems: 'center', padding: '0 12px', gap: 8, borderBottom: '1px solid #222',
         }}>
           <span style={{
-            width: 7, height: 7, borderRadius: '50%',
-            background: camState === 'live' ? '#4caf50' : camState === 'snapshot' ? '#facc15' : '#555',
+            width: 8, height: 8, borderRadius: '50%',
+            background: isScanning ? '#29b6f6' : camState === 'live' ? '#4caf50' : camState === 'snapshot' ? '#facc15' : '#555',
             display: 'inline-block',
+            boxShadow: isScanning ? '0 0 8px #29b6f6' : 'none',
           }} />
-          <span style={{ color: '#aaa', fontSize: 11 }}>
-            {camState === 'live' ? t.camActive : camState === 'snapshot' ? 'Fotoğraf Alındı' : t.camInactive}
+          <span style={{ color: '#aaa', fontSize: 11, fontWeight: 600 }}>
+            {isScanning ? '⚡ Lazer Işık Taraması Yapılıyor...' : camState === 'live' ? t.camActive : camState === 'snapshot' ? 'Optik Ölçüm Alındı' : t.camInactive}
           </span>
           {camError && <span style={{ color: '#f55', fontSize: 11, marginLeft: 8 }}>⚠ {camError}</span>}
         </div>
 
-        {/* görüntü alanı */}
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
-          {/* canlı video */}
+        {/* Görüntü alanı */}
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden', background: '#0f0f0f' }}>
+          {/* Canlı Video */}
           <video
             ref={videoRef}
             autoPlay
@@ -117,73 +158,87 @@ export const MeasurementScreen: React.FC = () => {
               width: '100%', height: '100%', objectFit: 'contain',
             }}
           />
-          {/* gizli snapshot canvas */}
           <canvas ref={snapCanvas} style={{ display: 'none' }} />
 
-          {/* snapshot görüntüsü */}
+          {/* Snapshot veya Optik Ölçüm Görüntüsü */}
           {camState === 'snapshot' && snapshotData && (
-            <img src={snapshotData} alt="snapshot"
-              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+            <img
+              src={snapshotData}
+              alt="optik ölçüm kesiti"
+              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', border: '1px solid #333' }}
+            />
           )}
 
-          {/* kamera kapalıysa test kesiti göster */}
+          {/* Kamera Kapalıysa EK_2 Kesit Diyagramı */}
           {camState === 'off' && (
-            <CableCanvas cableType={selectedCable} width={500} height={380} />
+            <CableCanvas cableType={selectedCable} width={520} height={400} />
+          )}
+
+          {/* Light / Laser Scanning Beam Animation Overlay */}
+          {isScanning && (
+            <div style={{
+              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+              pointerEvents: 'none',
+              background: 'linear-gradient(to bottom, rgba(41, 182, 246, 0) 0%, rgba(67, 160, 71, 0.4) 50%, rgba(41, 182, 246, 0) 100%)',
+              animation: 'laserScan 0.9s ease-in-out infinite',
+              borderTop: '2px solid #29b6f6',
+              boxShadow: '0 0 15px #29b6f6',
+            }} />
           )}
         </div>
 
-        {/* kamera kontrol butonları — EK_3 Şekil 1 gibi */}
+        {/* Kamera ve Optik Kontrol Butonları */}
         <div style={{
-          padding: '10px 14px', background: '#0a0a0a', borderTop: '1px solid #222',
+          padding: '10px 14px', background: '#070707', borderTop: '1px solid #222',
           display: 'flex', alignItems: 'center', gap: 10,
         }}>
-          {/* Fotoğraf Al */}
+          {/* Optik Fotoğraf / Ölçüm Al */}
           <button
-            onClick={camState === 'live' ? takeSnapshot : runMeasurement}
+            onClick={() => performOpticalScan(selectedCable)}
             disabled={camState === 'off'}
             title={t.capture}
             style={{
               width: 46, height: 46, borderRadius: 6,
               background: camState !== 'off' ? '#1e2e1e' : '#1a1a1a',
               border: `1px solid ${camState !== 'off' ? '#3d8b40' : '#333'}`,
-              color: '#ccc', fontSize: 22,
+              color: '#ccc', fontSize: 20, cursor: camState !== 'off' ? 'pointer' : 'default',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >📷</button>
 
-          {/* Başlat / Durdur */}
+          {/* Başlat / Durdur (▶ / ⏹) */}
           <button
             onClick={camState === 'off' ? startCamera : stopCamera}
             title={camState === 'off' ? 'Kamerayı Başlat' : 'Kamerayı Durdur'}
             style={{
               width: 46, height: 46, borderRadius: 6,
-              background: camState === 'live' ? '#1b3a1b' : '#1a1a1a',
-              border: `1px solid ${camState === 'live' ? '#3d8b40' : '#555'}`,
-              color: '#ccc', fontSize: 18,
+              background: camState === 'live' ? '#2a1a1a' : '#1b3a1b',
+              border: `1px solid ${camState === 'live' ? '#ef5350' : '#3d8b40'}`,
+              color: '#fff', fontSize: 18, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >{camState === 'live' ? '⏹' : '▶'}</button>
 
-          {/* Yeniden çek (snapshot modundayken) */}
+          {/* Yeniden Canlı Kameraya Dön */}
           {camState === 'snapshot' && (
             <button
               onClick={() => { setSnapshotData(null); setCamState('live'); }}
-              title="Yeniden Çek"
+              title="Canlı Kameraya Dön"
               style={{
                 width: 46, height: 46, borderRadius: 6,
-                background: '#2a2a00', border: '1px solid #888', color: '#ccc', fontSize: 16,
+                background: '#1a2a1a', border: '1px solid #43a047', color: '#81c784', fontSize: 16, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
             >🔄</button>
           )}
 
-          <div style={{ marginLeft: 'auto', color: '#444', fontSize: 11 }}>{now}</div>
+          <div style={{ marginLeft: 'auto', color: '#666', fontSize: 11 }}>{now}</div>
         </div>
       </div>
 
-      {/* ── Sağ: Seçim Paneli ── */}
+      {/* ── Sağ: Kablo Seçim Paneli ── */}
       <div style={{
-        width: 400, background: '#fff',
+        width: 380, background: '#fff',
         borderLeft: '1px solid #c8d0c8',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
       }}>
@@ -207,13 +262,13 @@ export const MeasurementScreen: React.FC = () => {
           </select>
         </div>
 
-        {/* Kablo Çeşitleri */}
+        {/* Kablo Çeşitleri Grid */}
         <div style={{
           margin: '10px 12px 0', border: '1px solid #c8d0c8',
           borderRadius: 6, overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column',
         }}>
           <div style={{
-            padding: '5px 10px', background: '#f0f2f0',
+            padding: '6px 10px', background: '#f0f2f0',
             borderBottom: '1px solid #c8d0c8', fontSize: 12, fontWeight: 700, color: '#4a5a4a',
           }}>
             {t.cableVarieties}
@@ -228,7 +283,7 @@ export const MeasurementScreen: React.FC = () => {
               return (
                 <button
                   key={p.id}
-                  onClick={() => setSelectedCable(p.id as CableTypeCategory)}
+                  onClick={() => handleSelectCable(p.id as CableTypeCategory)}
                   title={lang === 'tr' ? p.nameTr : p.nameEn}
                   style={{
                     background: active ? '#e8f5e9' : '#fff',
@@ -251,7 +306,7 @@ export const MeasurementScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* Seçili kablo */}
+        {/* Seçili Kablo Detayı */}
         <div style={{ padding: '7px 14px', borderTop: '1px solid #e0e5e0', background: '#f8faf8' }}>
           <strong style={{ color: '#2e7d32', fontSize: 11 }}>
             {selected ? (lang === 'tr' ? selected.nameTr : selected.nameEn) : ''}
@@ -259,7 +314,7 @@ export const MeasurementScreen: React.FC = () => {
           <span style={{ color: '#7a8a7a', fontSize: 10, marginLeft: 6 }}>{selected?.standard}</span>
         </div>
 
-        {/* Form */}
+        {/* İş Emri ve Ölçüm Başlat Butonu */}
         <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid #e0e5e0' }}>
           <div>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#4a5a4a', marginBottom: 4 }}>
@@ -288,13 +343,22 @@ export const MeasurementScreen: React.FC = () => {
             onClick={runMeasurement}
             style={{
               padding: '11px', background: '#3d8b40', border: 'none', borderRadius: 6,
-              color: '#fff', fontWeight: 700, fontSize: 14,
+              color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
             }}
           >
             ▶ {t.startMeasurement}
           </button>
         </div>
       </div>
+
+      {/* Laser Keyframe Animation CSS */}
+      <style>{`
+        @keyframes laserScan {
+          0% { transform: translateY(-100%); }
+          50% { transform: translateY(100%); }
+          100% { transform: translateY(-100%); }
+        }
+      `}</style>
     </div>
   );
 };

@@ -6,7 +6,7 @@ import { CABLE_PROFILES } from '../../core/data/profiles';
 
 /**
  * Builds and prints an HTML report as PDF.
- * Uses browser's built-in print dialog (landscape, A4) — no external library needed.
+ * Uses browser's built-in print dialog (landscape, A4) — includes camera image with measurement lines.
  */
 function printReport(result: import('../../core/interfaces/cable').IMeasurementResult, lang: 'tr' | 'en') {
   const profile = CABLE_PROFILES.find(p => p.id === result.cableType);
@@ -16,7 +16,7 @@ function printReport(result: import('../../core/interfaces/cable').IMeasurementR
   const rows = result.parameters.map(p => `
     <tr style="background:${p.passed ? '#f2f9f2' : '#fff4f4'}">
       <td>${lang === 'tr' ? p.nameTr : p.nameEn}</td>
-      <td style="text-align:center;font-weight:700">${p.value}</td>
+      <td style="text-align:center;font-weight:700;color:${p.passed ? '#2e7d32' : '#c62828'}">${p.value}</td>
       <td style="text-align:center">${p.unit}</td>
       <td style="text-align:center">${p.minTolerance ?? '—'}</td>
       <td style="text-align:center">${p.maxTolerance ?? '—'}</td>
@@ -29,18 +29,19 @@ function printReport(result: import('../../core/interfaces/cable').IMeasurementR
 <html lang="${lang}">
 <head>
   <meta charset="UTF-8"/>
-  <title>${t.reportTitle}</title>
+  <title>${t.reportTitle} - ${result.id}</title>
   <style>
     body { font-family: Segoe UI, Arial, sans-serif; font-size: 12px; padding: 24px; color: #1a2a1a; }
-    h1   { font-size: 17px; color: #2e7d32; margin-bottom: 4px; }
-    .meta { display:flex; gap:32px; margin-bottom: 18px; border-bottom: 2px solid #3d8b40; padding-bottom: 10px; }
-    .meta div { }
-    .meta span { font-weight: 700; }
-    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    h1   { font-size: 18px; color: #2e7d32; margin-bottom: 6px; }
+    .meta { display:flex; gap:24px; flex-wrap:wrap; margin-bottom: 16px; border-bottom: 2px solid #3d8b40; padding-bottom: 10px; font-size: 11px; }
+    .meta span { font-weight: 700; color: #1a2a1a; }
+    .image-box { display: flex; gap: 20px; align-items: flex-start; margin: 16px 0; }
+    .image-box img { max-width: 380px; max-height: 280px; border: 2px solid #3d8b40; border-radius: 6px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
     th { background: #3d8b40; color: #fff; padding: 7px 10px; text-align: left; font-size: 11px; }
     td { padding: 6px 10px; border-bottom: 1px solid #e0e5e0; }
-    .footer { margin-top: 24px; font-size: 10px; color: #999; text-align: center; }
-    .status-box { display:inline-block; padding:6px 16px; border-radius:6px; font-weight:800; font-size:15px;
+    .footer { margin-top: 24px; font-size: 10px; color: #888; text-align: center; border-top: 1px solid #eee; padding-top: 10px; }
+    .status-box { display:inline-block; padding:8px 18px; border-radius:6px; font-weight:800; font-size:14px;
       background:${result.overallPassed ? '#e8f5e9':'#fff4f4'};
       color:${result.overallPassed ? '#2e7d32':'#c62828'};
       border:2px solid ${result.overallPassed ? '#3d8b40':'#c62828'}; }
@@ -57,7 +58,19 @@ function printReport(result: import('../../core/interfaces/cable').IMeasurementR
     <div>Standart: <span>${result.standard}</span></div>
     <div>Ölçüm ID: <span>${result.id}</span></div>
   </div>
-  <div class="status-box">${result.overallPassed ? '✓ ' + t.pass : '✗ ' + t.fail} — ${t.overallStatus}</div>
+
+  <div class="image-box">
+    ${result.imagePath ? `<img src="${result.imagePath}" alt="Optik Ölçüm Kesiti" />` : ''}
+    <div>
+      <div class="status-box">${result.overallPassed ? '✓ ' + t.pass : '✗ ' + t.fail} — ${t.overallStatus}</div>
+      <div style="margin-top: 14px; font-size: 11px; color: #555; line-height: 1.6;">
+        <strong>Ölçüm Yöntemi:</strong> Optik Kamera & Lazer Taraması<br/>
+        <strong>Standart Uyum:</strong> TS EN 60811-201 / EK_2<br/>
+        <strong>Operatör:</strong> ${result.operatorName}
+      </div>
+    </div>
+  </div>
+
   <table>
     <thead>
       <tr>
@@ -71,12 +84,12 @@ function printReport(result: import('../../core/interfaces/cable').IMeasurementR
     </thead>
     <tbody>${rows}</tbody>
   </table>
-  ${result.notes ? `<p style="margin-top:16px;font-size:11px;color:#555"><strong>Not:</strong> ${result.notes}</p>` : ''}
-  <div class="footer">Kablo Yalıtım Kalınlığı Ölçüm Programı — otomatik oluşturuldu</div>
+  ${result.notes ? `<p style="margin-top:14px;font-size:11px;color:#555"><strong>Ölçüm Notları:</strong> ${result.notes}</p>` : ''}
+  <div class="footer">Kablo Yalıtım Kalınlığı Optik Ölçüm Sistemi — Otomatik Rapor</div>
 </body>
 </html>`;
 
-  const win = window.open('', '_blank', 'width=900,height=700');
+  const win = window.open('', '_blank', 'width=950,height=750');
   if (!win) return;
   win.document.write(html);
   win.document.close();
@@ -97,27 +110,27 @@ export const ResultScreen: React.FC = () => {
   return (
     <div style={{ display: 'flex', height: 'calc(100vh - 54px)', background: '#eef0ee' }}>
 
-      {/* ── Sol: Görsel ── */}
-      <div style={{ width: 440, display: 'flex', flexDirection: 'column', background: '#111', flexShrink: 0 }}>
-        <div style={{ height: 28, background: '#0a0a0a', display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: '1px solid #222' }}>
+      {/* ── Sol: Görsel Paneli ── */}
+      <div style={{ width: 460, display: 'flex', flexDirection: 'column', background: '#0a0a0a', flexShrink: 0 }}>
+        <div style={{ height: 28, background: '#070707', display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: '1px solid #222' }}>
           <span style={{ color: '#3d8b40', fontWeight: 700, fontSize: 12 }}>{t.resultsTitle}</span>
-          <span style={{ color: '#444', fontSize: 10, marginLeft: 'auto' }}>{currentResult.id}</span>
+          <span style={{ color: '#666', fontSize: 10, marginLeft: 'auto' }}>{currentResult.id}</span>
         </div>
 
-        {/* kamera fotoğrafı varsa göster, yoksa çizim */}
+        {/* Kamera fotoğrafı + Çizilmiş ölçüm çizgileri */}
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14 }} ref={canvasRef}>
           {currentResult.imagePath ? (
             <img
               src={currentResult.imagePath}
-              alt="kablo kesiti"
-              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 6 }}
+              alt="kablo optik ölçüm kesiti"
+              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 6, border: '1px solid #333' }}
             />
           ) : (
-            <CableCanvas cableType={currentResult.cableType} width={400} height={340} />
+            <CableCanvas cableType={currentResult.cableType} width={420} height={350} />
           )}
         </div>
 
-        {/* Genel durum */}
+        {/* Genel Durum Etiketi */}
         <div style={{
           padding: '10px 14px',
           background: passed ? '#1b3a1b' : '#3a1b1b',
@@ -131,32 +144,32 @@ export const ResultScreen: React.FC = () => {
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ color: '#666', fontSize: 10 }}>{profile ? (lang === 'tr' ? profile.nameTr : profile.nameEn) : ''}</div>
-            <div style={{ color: '#444', fontSize: 9 }}>{profile?.standard}</div>
+            <div style={{ color: '#aaa', fontSize: 11, fontWeight: 600 }}>{profile ? (lang === 'tr' ? profile.nameTr : profile.nameEn) : ''}</div>
+            <div style={{ color: '#666', fontSize: 10 }}>{profile?.standard}</div>
           </div>
         </div>
 
         {/* Butonlar */}
-        <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: '#0a0a0a', borderTop: '1px solid #222' }}>
+        <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: '#070707', borderTop: '1px solid #222' }}>
           <button onClick={() => setActiveScreen('measurement')} style={{
             flex: 1, padding: '9px', background: '#1a1a1a', border: '1px solid #333',
-            color: '#ccc', fontWeight: 600, fontSize: 12, borderRadius: 5,
+            color: '#ccc', fontWeight: 600, fontSize: 12, borderRadius: 5, cursor: 'pointer',
           }}>🔄 {t.newMeasurement}</button>
           <button onClick={() => printReport(currentResult, lang)} style={{
             flex: 1, padding: '9px', background: '#3d8b40', border: 'none',
-            color: '#fff', fontWeight: 700, fontSize: 12, borderRadius: 5,
+            color: '#fff', fontWeight: 700, fontSize: 12, borderRadius: 5, cursor: 'pointer',
           }}>📄 {t.generateReport}</button>
         </div>
       </div>
 
-      {/* ── Sağ: Sonuç Tablosu ── */}
+      {/* ── Sağ: Ölçüm Değerleri Tablosu ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', overflow: 'hidden' }}>
 
-        {/* tablo başlığı */}
+        {/* Tablo Başlığı */}
         <div style={{
-          background: '#3d8b40', color: '#fff', padding: '7px 16px',
+          background: '#3d8b40', color: '#fff', padding: '8px 16px',
           display: 'grid',
-          gridTemplateColumns: '1fr 80px 50px 70px 70px 60px',
+          gridTemplateColumns: '1fr 90px 50px 75px 75px 60px',
           gap: 8, fontSize: 11, fontWeight: 700,
         }}>
           <span>{t.parameter}</span>
@@ -171,28 +184,27 @@ export const ResultScreen: React.FC = () => {
           {currentResult.parameters.map((p, idx) => (
             <div
               key={p.key}
-              className={p.passed ? 'row-pass' : 'row-fail'}
               style={{
                 display: 'grid',
-                gridTemplateColumns: '1fr 80px 50px 70px 70px 60px',
+                gridTemplateColumns: '1fr 90px 50px 75px 75px 60px',
                 gap: 8,
-                padding: '7px 16px',
+                padding: '8px 16px',
                 borderBottom: `1px solid ${p.passed ? '#e8ebe8' : '#ffcdd2'}`,
                 alignItems: 'center',
                 fontSize: 12,
-                background: idx % 2 === 0 ? undefined : (p.passed ? '#f8faf8' : undefined),
+                background: idx % 2 === 0 ? '#ffffff' : (p.passed ? '#f8faf8' : '#fff9f9'),
               }}
             >
-              <span style={{ color: '#1a2a1a' }}>{lang === 'tr' ? p.nameTr : p.nameEn}</span>
+              <span style={{ color: '#1a2a1a', fontWeight: 600 }}>{lang === 'tr' ? p.nameTr : p.nameEn}</span>
               <span style={{
                 fontWeight: 700, textAlign: 'center',
                 color: p.passed ? '#2e7d32' : '#c62828',
               }}>{p.value}</span>
               <span style={{ textAlign: 'center', color: '#7a8a7a' }}>{p.unit}</span>
-              <span style={{ textAlign: 'center', color: '#999', fontSize: 11 }}>
+              <span style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>
                 {p.minTolerance !== undefined ? p.minTolerance : '—'}
               </span>
-              <span style={{ textAlign: 'center', color: '#999', fontSize: 11 }}>
+              <span style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>
                 {p.maxTolerance !== undefined ? p.maxTolerance : '—'}
               </span>
               <span style={{
@@ -203,9 +215,9 @@ export const ResultScreen: React.FC = () => {
           ))}
         </div>
 
-        {/* footer */}
+        {/* Footer Info */}
         <div style={{
-          padding: '7px 16px', background: '#f0f2f0', borderTop: '1px solid #d0d8d0',
+          padding: '8px 16px', background: '#f0f2f0', borderTop: '1px solid #d0d8d0',
           display: 'flex', gap: 20, fontSize: 11, color: '#4a5a4a',
         }}>
           <span>{t.reportOperator}: <strong>{currentResult.operatorName}</strong></span>
