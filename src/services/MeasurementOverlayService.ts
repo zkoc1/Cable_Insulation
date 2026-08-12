@@ -9,18 +9,20 @@ export interface DynamicMeasurementData {
   rInnerPx: number;
   cx: number;
   cy: number;
+  isValidCableDetected: boolean;
 }
 
 /**
  * Advanced Optical Computer Vision Inspection Service:
- * Performs real-time pixel edge detection on camera frames to locate cable boundaries (cx, cy, rOut, rIn)
- * and overlays precision layer tints (Red insulation, Yellow core, Green contour, Blue/Red radial lines)
- * adaptive to all 8 EK_2 cable profiles.
+ * Uses Radial Gradient Circle Accumulator to detect the exact center (cx, cy),
+ * outer radius (rOut), and inner radius (rIn) of the cable cross-section in camera photos.
+ * Includes a Cable Quality Filter to prevent drawing overlays over human faces or room backgrounds.
  */
 export class MeasurementOverlayService {
 
   /**
    * Performs Hough-like Radial Gradient Search to find the exact cable circle in the image.
+   * Returns isValidCableDetected = false if no high-contrast circular cable contour is found (e.g. human face).
    */
   public static analyzeFrame(
     ctx: CanvasRenderingContext2D,
@@ -45,14 +47,14 @@ export class MeasurementOverlayService {
 
       // Fast Grid Search for Circle Center (cx, cy) and Outer Radius r
       let maxScore = -1;
-      const stepXY = 12;
-      const minR = Math.round(Math.min(W, H) * 0.12);
-      const maxR = Math.round(Math.min(W, H) * 0.42);
-      const stepR = 8;
+      const stepXY = 14;
+      const minR = Math.round(Math.min(W, H) * 0.14);
+      const maxR = Math.round(Math.min(W, H) * 0.40);
+      const stepR = 10;
       const numAngles = 16;
 
-      for (let y = Math.round(H * 0.15); y < H * 0.85; y += stepXY) {
-        for (let x = Math.round(W * 0.15); x < W * 0.85; x += stepXY) {
+      for (let y = Math.round(H * 0.18); y < H * 0.82; y += stepXY) {
+        for (let x = Math.round(W * 0.18); x < W * 0.82; x += stepXY) {
           for (let r = minR; r <= maxR; r += stepR) {
             let score = 0;
             for (let aIdx = 0; aIdx < numAngles; aIdx++) {
@@ -78,6 +80,22 @@ export class MeasurementOverlayService {
             }
           }
         }
+      }
+
+      // Cable circular contrast quality threshold
+      const isValidCableDetected = maxScore > 350; // Filter out faces/room backgrounds
+
+      if (!isValidCableDetected) {
+        return {
+          tmin: 0.74,
+          tmax: 0.86,
+          eccentricity: 0.042,
+          rOuterPx: Math.min(W, H) * 0.30,
+          rInnerPx: Math.min(W, H) * 0.15,
+          cx: W / 2,
+          cy: H / 2,
+          isValidCableDetected: false,
+        };
       }
 
       // Refine Inner Radius rIn from detected center
@@ -115,6 +133,7 @@ export class MeasurementOverlayService {
         rInnerPx: bestRIn,
         cx: bestCx,
         cy: bestCy,
+        isValidCableDetected: true,
       };
     } catch {
       return {
@@ -125,6 +144,7 @@ export class MeasurementOverlayService {
         rInnerPx: Math.min(W, H) * 0.15,
         cx: W / 2,
         cy: H / 2,
+        isValidCableDetected: false,
       };
     }
   }
@@ -142,9 +162,12 @@ export class MeasurementOverlayService {
     hasCameraPhoto = false
   ) {
     const data = dynamicData || MeasurementOverlayService.analyzeFrame(ctx, W, H);
-    const cx = data.cx;
-    const cy = data.cy;
-    const rOut = data.rOuterPx;
+
+    // If no camera photo or if no valid cable is detected (e.g. human face in camera),
+    // strictly use centered coordinates (W/2, H/2) to prevent off-center circles!
+    const cx = (hasCameraPhoto && data.isValidCableDetected) ? data.cx : W / 2;
+    const cy = (hasCameraPhoto && data.isValidCableDetected) ? data.cy : H / 2;
+    const rOut = (hasCameraPhoto && data.isValidCableDetected) ? data.rOuterPx : Math.min(W, H) * 0.30;
     const rIn  = Math.min(data.rInnerPx, rOut * 0.75);
 
     // Fill white background ONLY if no real camera photo is present
@@ -157,6 +180,21 @@ export class MeasurementOverlayService {
     const redLayerFill = hasCameraPhoto ? 'rgba(220, 38, 38, 0.45)' : '#dc2626';
     const yellowLayerFill = hasCameraPhoto ? 'rgba(250, 204, 21, 0.50)' : '#facc15';
     const blueLayerFill = hasCameraPhoto ? 'rgba(37, 99, 235, 0.45)' : '#2563eb';
+
+    // Warning Banner if camera is open but no cable object is detected (e.g. face/room)
+    if (hasCameraPhoto && !data.isValidCableDetected) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+      ctx.fillRect(10, 10, W - 20, 34);
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(10, 10, W - 20, 34);
+
+      ctx.font = 'bold 12px Segoe UI, sans-serif';
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillText('⚠ KABLO KESİTİ BULUNAMADI — Lütfen kablo numunesini mercek altına yerleştirin.', 20, 32);
+      ctx.restore();
+    }
 
     // Helper: Draw Dimension Line & Label
     const drawDim = (x1: number, y1: number, x2: number, y2: number, txt: string, col = '#2563eb') => {
@@ -182,7 +220,7 @@ export class MeasurementOverlayService {
 
     switch (cableType) {
 
-      // 1. XLPE_HV (High Voltage 3-Layer Cable: Outer Sheath, XLPE Insulation, Inner Semiconductor)
+      // 1. XLPE_HV
       case C.XLPE_HV: {
         const rSemi = rIn * 0.70;
 
@@ -191,31 +229,26 @@ export class MeasurementOverlayService {
           ctx.fillStyle = '#0f172a'; ctx.fill();
         }
 
-        // Outer Green Border Ring
         ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 3.5;
         ctx.beginPath(); ctx.arc(cx, cy, rOut, 0, Math.PI * 2); ctx.stroke();
 
-        // XLPE Insulation Wall Layer (RED)
         ctx.beginPath();
         ctx.arc(cx, cy, rOut, 0, Math.PI * 2, false);
         ctx.arc(cx, cy, rIn, 0, Math.PI * 2, true);
         ctx.fillStyle = redLayerFill; ctx.fill();
         ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 2; ctx.stroke();
 
-        // Inner Semiconductor Layer (BLUE)
         ctx.beginPath();
         ctx.arc(cx, cy, rIn, 0, Math.PI * 2, false);
         ctx.arc(cx, cy, rSemi, 0, Math.PI * 2, true);
         ctx.fillStyle = blueLayerFill; ctx.fill();
         ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 2; ctx.stroke();
 
-        // Conductor Core (YELLOW)
         ctx.beginPath();
         ctx.arc(cx, cy, rSemi, 0, Math.PI * 2);
         ctx.fillStyle = yellowLayerFill; ctx.fill();
         ctx.strokeStyle = '#eab308'; ctx.lineWidth = 2; ctx.stroke();
 
-        // 6 Radial Measurement Lines
         for (let i = 0; i < 6; i++) {
           const a = (i * 60 * Math.PI) / 180;
           ctx.beginPath();
@@ -230,31 +263,27 @@ export class MeasurementOverlayService {
         break;
       }
 
-      // 2. TESISAT_SINGLE_COLOR (Single Core Installation Cable + Color Ratio Arc)
+      // 2. TESISAT_SINGLE_COLOR
       case C.TESISAT_SINGLE_COLOR: {
         if (!hasCameraPhoto) {
           ctx.beginPath(); ctx.arc(cx, cy, rOut + 4, 0, Math.PI * 2);
           ctx.fillStyle = '#1e293b'; ctx.fill();
         }
 
-        // Insulation Ring (RED)
         ctx.beginPath();
         ctx.arc(cx, cy, rOut, 0, Math.PI * 2, false);
         ctx.arc(cx, cy, rIn, 0, Math.PI * 2, true);
         ctx.fillStyle = redLayerFill; ctx.fill();
         ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 2.5; ctx.stroke();
 
-        // Color Arc Indicator (Green arc for y1+y2 color ratio)
         ctx.beginPath();
         ctx.arc(cx, cy, rOut, -Math.PI / 3, Math.PI / 3);
         ctx.strokeStyle = '#eab308'; ctx.lineWidth = 5; ctx.stroke();
 
-        // Conductor Core (YELLOW)
         ctx.beginPath(); ctx.arc(cx, cy, rIn, 0, Math.PI * 2);
         ctx.fillStyle = yellowLayerFill; ctx.fill();
         ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 2; ctx.stroke();
 
-        // Radial Lines
         for (let i = 0; i < 4; i++) {
           const a = (i * 90 * Math.PI) / 180;
           ctx.beginPath();
@@ -267,7 +296,7 @@ export class MeasurementOverlayService {
         break;
       }
 
-      // 3. TESISAT_MULTI_CORE (3-Core Trefoil Cable)
+      // 3. TESISAT_MULTI_CORE
       case C.TESISAT_MULTI_CORE: {
         const dist = rOut * 0.42;
         const coreR = (rOut - dist) * 0.85;
@@ -284,17 +313,13 @@ export class MeasurementOverlayService {
           const px = cx + Math.cos(a) * dist;
           const py = cy + Math.sin(a) * dist;
 
-          // Core Insulation (RED)
           ctx.beginPath(); ctx.arc(px, py, coreR, 0, Math.PI * 2);
           ctx.fillStyle = redLayerFill; ctx.fill();
-          ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 2; ctx.stroke();
 
-          // Conductor (YELLOW)
           ctx.beginPath(); ctx.arc(px, py, innerR, 0, Math.PI * 2);
           ctx.fillStyle = yellowLayerFill; ctx.fill();
           ctx.strokeStyle = '#eab308'; ctx.lineWidth = 1.5; ctx.stroke();
 
-          // Radial thickness line per core
           ctx.beginPath();
           ctx.moveTo(px, py);
           ctx.lineTo(px + Math.cos(a) * coreR, py + Math.sin(a) * coreR);
@@ -305,9 +330,8 @@ export class MeasurementOverlayService {
         break;
       }
 
-      // 4. AER (Cable with 3 Outer Bumps/Ridges)
+      // 4. AER
       case C.AER: {
-        // Outer Bumps (Çb, Çm)
         const bumpDist = rOut + 8;
         for (let i = 0; i < 3; i++) {
           const a = (i * 120 * Math.PI) / 180 - Math.PI / 2;
@@ -321,18 +345,15 @@ export class MeasurementOverlayService {
           if (i === 0) drawDim(cx, cy - rOut, bx, by, `Çb = 1.38 mm`, '#f59e0b');
         }
 
-        // Insulation Ring (RED)
         ctx.beginPath();
         ctx.arc(cx, cy, rOut, 0, Math.PI * 2, false);
         ctx.arc(cx, cy, rIn, 0, Math.PI * 2, true);
         ctx.fillStyle = redLayerFill; ctx.fill();
         ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 2.5; ctx.stroke();
 
-        // Core (YELLOW)
         ctx.beginPath(); ctx.arc(cx, cy, rIn, 0, Math.PI * 2);
         ctx.fillStyle = yellowLayerFill; ctx.fill();
 
-        // Radial Lines
         for (let i = 0; i < 6; i++) {
           const a = (i * 60 * Math.PI) / 180;
           ctx.beginPath();
@@ -343,13 +364,12 @@ export class MeasurementOverlayService {
         break;
       }
 
-      // 5. NYIF (Flat 2-Core Bridge Cable)
+      // 5. NYIF
       case C.NYIF: {
         const coreR = rOut * 0.40;
         const innerR = rIn * 0.40;
         const offset = rOut * 0.48;
 
-        // Bridge rectangle fill bounded inside rOut
         ctx.fillStyle = redLayerFill;
         ctx.fillRect(cx - offset, cy - coreR, offset * 2, coreR * 2);
 
@@ -365,13 +385,12 @@ export class MeasurementOverlayService {
           ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 2.5; ctx.stroke();
         });
 
-        // Bridge Dimension Lines y1 and y2
         drawDim(cx - offset, cy, cx + offset, cy, `y1 = 1.28 mm`, '#2563eb');
         drawDim(cx - offset, cy - coreR, cx - offset, cy + coreR, `y2 = 1.36 mm`, '#dc2626');
         break;
       }
 
-      // 6. YASSI_TTR (Flat 3-Core Inline Cable)
+      // 6. YASSI_TTR
       case C.YASSI_TTR: {
         const coreR = rOut * 0.32;
         const innerR = rIn * 0.32;
@@ -391,7 +410,6 @@ export class MeasurementOverlayService {
           ctx.beginPath(); ctx.arc(cx + offX, cy, coreR, 0, Math.PI * 2);
           ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 2.5; ctx.stroke();
 
-          // Radial Line
           ctx.beginPath();
           ctx.moveTo(cx + offX, cy - coreR);
           ctx.lineTo(cx + offX, cy + coreR);
@@ -402,7 +420,7 @@ export class MeasurementOverlayService {
         break;
       }
 
-      // 7. SEKTOR (3-Sector Shaped Cable)
+      // 7. SEKTOR
       case C.SEKTOR: {
         const secAngle = (2 * Math.PI) / 3;
 
@@ -416,7 +434,6 @@ export class MeasurementOverlayService {
           ctx.fillStyle = redLayerFill; ctx.fill();
           ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 2.5; ctx.stroke();
 
-          // Sector Conductor Core
           const midA = startA + secAngle / 2;
           const mx = cx + Math.cos(midA) * (rOut * 0.50);
           const my = cy + Math.sin(midA) * (rOut * 0.50);
@@ -438,19 +455,16 @@ export class MeasurementOverlayService {
           ctx.fillStyle = '#0f172a'; ctx.fill();
         }
 
-        // Insulation Ring (RED)
         ctx.beginPath();
         ctx.arc(cx, cy, rOut, 0, Math.PI * 2, false);
         ctx.arc(cx, cy, rIn, 0, Math.PI * 2, true);
         ctx.fillStyle = redLayerFill; ctx.fill();
         ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 2.5; ctx.stroke();
 
-        // Conductor Core (YELLOW)
         ctx.beginPath(); ctx.arc(cx, cy, rIn, 0, Math.PI * 2);
         ctx.fillStyle = yellowLayerFill; ctx.fill();
         ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 2; ctx.stroke();
 
-        // 6 Radial Measurement Lines
         for (let i = 0; i < 6; i++) {
           const a = (i * 60 * Math.PI) / 180;
           ctx.beginPath();
@@ -486,15 +500,16 @@ export class MeasurementOverlayService {
     if (!ctx) {
       return {
         imagePath: '',
-        measurementData: { tmin: 0.74, tmax: 0.86, eccentricity: 0.042, rOuterPx: 180, rInnerPx: 90, cx: width / 2, cy: height / 2 },
+        measurementData: { tmin: 0.74, tmax: 0.86, eccentricity: 0.042, rOuterPx: 180, rInnerPx: 90, cx: width / 2, cy: height / 2, isValidCableDetected: false },
       };
     }
 
     let hasPhoto = false;
     let dynamicData: DynamicMeasurementData = {
       tmin: 0.74, tmax: 0.86, eccentricity: 0.042,
-      rOuterPx: width * 0.32, rInnerPx: width * 0.17,
+      rOuterPx: width * 0.30, rInnerPx: width * 0.15,
       cx: width / 2, cy: height / 2,
+      isValidCableDetected: false,
     };
 
     if (sourceImageDataUrl) {
@@ -519,8 +534,6 @@ export class MeasurementOverlayService {
         img.onerror = () => resolve();
         img.src = sourceImageDataUrl;
       });
-    } else {
-      dynamicData = MeasurementOverlayService.analyzeFrame(ctx, width, height);
     }
 
     // Draw optical colorized shape mask + radial lines dynamically aligned to the DETECTED cable contour
