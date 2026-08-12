@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { CABLE_PROFILES } from '../../core/data/profiles';
-import { translations } from '../../core/i18n/translations';
-import { CableCanvas } from '../cable/CableCanvas';
 import { CableIcon } from '../cable/CableIcon';
 import type { CableTypeCategory } from '../../core/interfaces/cable';
 
@@ -11,23 +9,19 @@ import {
   EK2_MASTER_FORMULA_CATALOG,
   DEFAULT_FORMULAS,
   type Formula,
+  type FormulaCategoryDef,
 } from '../../services/FormulaService';
 
 export const AdminScreen: React.FC = () => {
   const { lang, setActiveScreen } = useAppStore();
-  const t = translations[lang];
 
   const [formulas, setFormulas] = useState<Record<string, Formula[]>>(() => FormulaService.loadAllFormulas());
+
   const [activeCable, setActiveCable] = useState<CableTypeCategory>('XLPE_HV' as CableTypeCategory);
+  const [activeTab, setActiveTab] = useState<FormulaCategoryDef['id']>('WALLS');
 
   // Status notification toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  // Custom formula add form state
-  const [showAddCustom, setShowAddCustom] = useState(false);
-  const [newLabel, setNewLabel] = useState('');
-  const [newExpr, setNewExpr] = useState('');
-  const [newStd, setNewStd] = useState('');
 
   const activeFormulas: Formula[] = formulas[activeCable] ?? [];
   const activeCableProfile = CABLE_PROFILES.find(p => p.id === activeCable);
@@ -53,52 +47,19 @@ export const AdminScreen: React.FC = () => {
     }));
   };
 
-  // Select all formulas in master catalog for active cable category
-  const selectAllFormulas = () => {
-    const allFormulas = EK2_MASTER_FORMULA_CATALOG.flatMap(c => c.formulas);
-    setFormulas(prev => ({
-      ...prev,
-      [activeCable]: allFormulas,
-    }));
-  };
-
   // Reset to default formulas for active cable type
   const resetToDefaults = () => {
     setFormulas(prev => ({
       ...prev,
       [activeCable]: DEFAULT_FORMULAS[activeCable] ?? [],
     }));
-    showToast('Varsayılan EK_2 formül kümesine sıfırlandı.');
+    showToast('Varsayılan VELOX / EK_2 parametre planına sıfırlandı.');
   };
 
   // Explicitly Save formulas to localStorage
   const handleSave = () => {
     FormulaService.saveAllFormulas(formulas);
-    showToast('✓ Formüller başarıyla kaydedildi ve ölçüm sistemine aktarıldı!');
-  };
-
-  // Add custom formula
-  const addCustomFormula = () => {
-    if (!newLabel.trim() || !newExpr.trim()) return;
-    const customFormula: Formula = {
-      id: `custom_${Date.now()}`,
-      category: activeCable,
-      label: newLabel.trim(),
-      expression: newExpr.trim(),
-      standard: newStd.trim() || activeCableProfile?.standard || 'Özel Standard',
-      enabled: true,
-    };
-
-    setFormulas(prev => ({
-      ...prev,
-      [activeCable]: [...(prev[activeCable] || []), customFormula],
-    }));
-
-    setNewLabel('');
-    setNewExpr('');
-    setNewStd('');
-    setShowAddCustom(false);
-    showToast('Özel formül listeye eklendi. Kaydetmeyi unutmayın.');
+    showToast('✓ Parametreler başarıyla kaydedildi ve test planına aktarıldı!');
   };
 
   const showToast = (msg: string) => {
@@ -108,34 +69,52 @@ export const AdminScreen: React.FC = () => {
     }, 3000);
   };
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 54px)', background: '#f4f6f4' }}>
+  // Active category definition
+  const currentCategory = EK2_MASTER_FORMULA_CATALOG.find(c => c.id === activeTab) || EK2_MASTER_FORMULA_CATALOG[2];
 
-      {/* Üst Bar */}
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 54px)', background: '#eef0ee' }}>
+
+      {/* Üst Bar: VELOX Parameter Categories (Image 1) */}
       <div style={{
-        padding: '10px 20px', background: '#fff',
-        borderBottom: '2px solid #3d8b40',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.04)',
+        background: '#e0e0e0', borderBottom: '2px solid #3d8b40',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 18 }}>⚙</span>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 15, color: '#1a2a1a' }}>
-              {t.adminPanel} — Formül & Ölçüm Yapılandırma
-            </div>
-            <div style={{ fontSize: 11, color: '#666' }}>
-              EK_2 standart formül kütüphanesinden formül ekleyin/çıkartın ve kaydedin
-            </div>
-          </div>
+        {/* Horizontal Category Tabs matching Image 1 */}
+        <div style={{ display: 'flex', gap: 2 }}>
+          {EK2_MASTER_FORMULA_CATALOG.map(cat => {
+            const isActive = activeTab === cat.id;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setActiveTab(cat.id)}
+                style={{
+                  padding: '10px 18px',
+                  background: isActive ? '#fff' : '#d6d6d6',
+                  color: isActive ? '#1b5e20' : '#444',
+                  fontWeight: 700, fontSize: 12, border: 'none',
+                  borderTop: isActive ? '3px solid #3d8b40' : '3px solid transparent',
+                  borderRight: '1px solid #ccc',
+                  cursor: 'pointer', transition: 'all 0.15s ease',
+                }}
+              >
+                {cat.id === 'DIAMETER' && 'Diameter'}
+                {cat.id === 'DISTANCES_FORMS' && 'Distances & Forms'}
+                {cat.id === 'WALLS' && 'Walls'}
+                {cat.id === 'AREAS_VOLUMES' && 'Areas & Volumes'}
+                {cat.id === 'CONCENTRICITIES' && 'Concentricities'}
+                {cat.id === 'OTHERS' && 'Others'}
+              </button>
+            );
+          })}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {/* Save & Navigation */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0' }}>
           {toastMessage && (
             <div style={{
               background: '#e8f5e9', border: '1px solid #43a047', color: '#2e7d32',
-              fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 4,
-              animation: 'fadeIn 0.3s ease',
+              fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 4,
             }}>
               {toastMessage}
             </div>
@@ -144,243 +123,171 @@ export const AdminScreen: React.FC = () => {
           <button
             onClick={handleSave}
             style={{
-              padding: '7px 18px', background: '#2e7d32', border: 'none',
-              borderRadius: 5, color: '#fff', fontWeight: 700, fontSize: 13,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+              padding: '6px 16px', background: '#2e7d32', border: 'none',
+              borderRadius: 4, color: '#fff', fontWeight: 700, fontSize: 12,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
               boxShadow: '0 2px 4px rgba(46,125,50,0.3)',
             }}
           >
-            <span>💾</span> KAYDET (Kaydet & Aktar)
+            💾 KAYDET
           </button>
 
           <button onClick={() => setActiveScreen('measurement')} style={{
-            padding: '7px 14px', background: '#f0f2f0', border: '1px solid #c8d0c8',
-            borderRadius: 5, fontSize: 12, fontWeight: 600, color: '#4a5a4a', cursor: 'pointer',
-          }}>← Ölçüm Ekranına Dön</button>
+            padding: '6px 12px', background: '#fff', border: '1px solid #bbb',
+            borderRadius: 4, fontSize: 12, fontWeight: 600, color: '#333', cursor: 'pointer',
+          }}>← Ölçüm Ekranı</button>
         </div>
       </div>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-        {/* ── Sol Panel: Kablo Tipleri Listesi ── */}
-        <div style={{ width: 280, borderRight: '1px solid #d0d8d0', background: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#5a6a5a', borderBottom: '1px solid #e8ebe8', textTransform: 'uppercase', letterSpacing: 0.8 }}>
-            Kablo Kategorileri
+        {/* ── Sol: Parameter Catalog Library Grid for Selected Tab (Image 1 Left Side) ── */}
+        <div style={{ flex: 1, padding: 16, overflowY: 'auto', background: '#f4f6f4' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#2e7d32', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>📐 {lang === 'tr' ? currentCategory.titleTr : currentCategory.titleEn}</span>
+            <span style={{ fontSize: 11, color: '#666', fontWeight: 400 }}>Tıklayarak test planına ekleyin/çıkartın</span>
           </div>
 
-          {/* Mini canvas önizleme - seçili kablo */}
-          <div style={{ background: '#f8f9fa', borderBottom: '1px solid #e8ebe8', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
-            <CableCanvas cableType={activeCable} width={180} height={130} thumbnail />
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#2e7d32', marginTop: 6 }}>
-              {activeCableProfile ? (lang === 'tr' ? activeCableProfile.nameTr : activeCableProfile.nameEn) : ''}
-            </div>
-            <div style={{ fontSize: 10, color: '#7a8a7a' }}>{activeCableProfile?.standard}</div>
-          </div>
-
-          {/* Kablo listesi */}
-          <div style={{ overflowY: 'auto', flex: 1 }}>
-            {CABLE_PROFILES.map(p => {
-              const active = activeCable === p.id;
-              const count = (formulas[p.id] ?? []).length;
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+            {currentCategory.formulas.map(formula => {
+              const active = isFormulaActive(formula.id);
               return (
-                <button
-                  key={p.id}
-                  onClick={() => { setActiveCable(p.id as CableTypeCategory); setShowAddCustom(false); }}
+                <div
+                  key={formula.id}
+                  onClick={() => toggleFormula(formula)}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                    padding: '10px 12px', border: 'none', borderBottom: '1px solid #eee',
-                    background: active ? '#e8f5e9' : 'transparent',
-                    borderLeft: `4px solid ${active ? '#2e7d32' : 'transparent'}`,
-                    cursor: 'pointer', textAlign: 'left',
+                    background: active ? '#fff' : '#f9f9f9',
+                    border: `2px solid ${active ? '#3d8b40' : '#ccc'}`,
+                    borderRadius: 6, padding: '12px 14px',
+                    boxShadow: active ? '0 2px 6px rgba(61,139,64,0.18)' : 'none',
+                    cursor: 'pointer', transition: 'all 0.15s ease',
+                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 110,
                   }}
                 >
-                  <div style={{ flexShrink: 0 }}>
-                    <CableIcon type={p.id as CableTypeCategory} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: active ? 700 : 600, color: active ? '#2e7d32' : '#1a2a1a' }}>
-                      {lang === 'tr' ? p.nameTr : p.nameEn}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: active ? '#1b5e20' : '#444' }}>
+                      {formula.label}
                     </div>
-                    <div style={{ fontSize: 10, color: '#7a8a7a' }}>{p.standard}</div>
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={() => {}}
+                      style={{ accentColor: '#2e7d32', width: 16, height: 16, cursor: 'pointer' }}
+                    />
                   </div>
+
                   <div style={{
-                    background: active ? '#2e7d32' : '#e0e0e0', color: active ? '#fff' : '#444',
-                    fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 10,
+                    fontSize: 13, fontWeight: 700, color: active ? '#c62828' : '#777',
+                    fontFamily: 'Cambria, Georgia, serif', textAlign: 'center', margin: '8px 0',
+                    padding: '4px', background: active ? '#fff8f8' : '#eee', borderRadius: 4,
                   }}>
-                    {count}
+                    {formula.expression}
                   </div>
-                </button>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 9, color: '#666' }}>
+                    <span>{formula.standard}</span>
+                    <span style={{
+                      fontWeight: 800, padding: '1px 6px', borderRadius: 3,
+                      background: active ? '#e8f5e9' : '#e0e0e0', color: active ? '#2e7d32' : '#666',
+                    }}>
+                      {active ? 'AKTİF' : 'PASİF'}
+                    </span>
+                  </div>
+                </div>
               );
             })}
           </div>
         </div>
 
-        {/* ── Sağ Panel: Formül Seçim Paneli (Kategorize) ── */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' }}>
+        {/* ── Sağ: Test Plan / Active Cable Configuration Table (Image 1 Right Side) ── */}
+        <div style={{ width: 380, borderLeft: '2px solid #ccc', background: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-          {/* Kablo başlığı & Toplu Ekle/Çıkart Butonları */}
-          <div style={{
-            padding: '12px 20px', background: '#f8faf8',
-            borderBottom: '1px solid #e0e5e0',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#1a2a1a' }}>
-                {activeCableProfile ? (lang === 'tr' ? activeCableProfile.nameTr : activeCableProfile.nameEn) : ''} için Aktif Formüller
-              </div>
-              <div style={{ fontSize: 11, color: '#556655', marginTop: 2 }}>
-                Bu kablo tipi seçildiğinde ekrandaki optik ölçüm bu {activeFormulas.length} formüle göre hesaplanacaktır.
-              </div>
+          {/* Test plan header & Cable selection buttons (Image 1 Top Right) */}
+          <div style={{ padding: '8px 12px', background: '#f8faf8', borderBottom: '1px solid #ddd' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#555', marginBottom: 6, textTransform: 'uppercase' }}>
+              Seçili Test Planı (Kablo Tipi)
             </div>
-
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={resetToDefaults} style={{
-                padding: '6px 12px', background: '#fff', border: '1px solid #c8d0c8',
-                borderRadius: 4, fontSize: 11, color: '#4a5a4a', cursor: 'pointer',
-              }}>↺ Varsayılana Dön</button>
-              
-              <button onClick={selectAllFormulas} style={{
-                padding: '6px 12px', background: '#fff', border: '1px solid #c8d0c8',
-                borderRadius: 4, fontSize: 11, color: '#1b5e20', fontWeight: 600, cursor: 'pointer',
-              }}>✓ Tümünü Seç</button>
-
-              <button onClick={() => setShowAddCustom(!showAddCustom)} style={{
-                padding: '6px 14px', background: '#f0f4f0', border: '1px solid #a5d6a7',
-                borderRadius: 4, color: '#2e7d32', fontWeight: 700, fontSize: 12, cursor: 'pointer',
-              }}>+ Özel Formül Ekle</button>
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+              {CABLE_PROFILES.map(p => {
+                const active = activeCable === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => setActiveCable(p.id as CableTypeCategory)}
+                    style={{
+                      padding: '5px 8px', borderRadius: 4,
+                      background: active ? '#e8f5e9' : '#f0f0f0',
+                      border: `1.5 solid ${active ? '#3d8b40' : '#ccc'}`,
+                      color: active ? '#2e7d32' : '#555', fontWeight: 700, fontSize: 10,
+                      cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4,
+                    }}
+                  >
+                    <CableIcon type={p.id as CableTypeCategory} />
+                    {p.id.replace(/_/g, ' ')}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Özel formül ekleme formu */}
-          {showAddCustom && (
-            <div style={{
-              padding: '14px 20px', background: '#e8f5e9',
-              borderBottom: '1px solid #a5d6a7',
-              display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end',
-            }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#2e7d32' }}>{t.formulaLabel}</label>
-                <input
-                  value={newLabel}
-                  onChange={e => setNewLabel(e.target.value)}
-                  placeholder="örn: tmin_xlpe"
-                  style={{ padding: '6px 10px', border: '1px solid #a5d6a7', borderRadius: 4, fontSize: 12, width: 180 }}
-                />
+          {/* Selected Cable Details Header */}
+          <div style={{ padding: '10px 14px', background: '#2e7d32', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>
+                {activeCableProfile ? (lang === 'tr' ? activeCableProfile.nameTr : activeCableProfile.nameEn) : ''}
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#2e7d32' }}>{t.formulaExpr}</label>
-                <input
-                  value={newExpr}
-                  onChange={e => setNewExpr(e.target.value)}
-                  placeholder="örn: (tmax-tmin)/tmax × 100"
-                  style={{ padding: '6px 10px', border: '1px solid #a5d6a7', borderRadius: 4, fontSize: 12, width: 260 }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#2e7d32' }}>{t.formulaStd}</label>
-                <input
-                  value={newStd}
-                  onChange={e => setNewStd(e.target.value)}
-                  placeholder="TS EN 60811-201"
-                  style={{ padding: '6px 10px', border: '1px solid #a5d6a7', borderRadius: 4, fontSize: 12, width: 160 }}
-                />
-              </div>
-              <button onClick={addCustomFormula} style={{
-                padding: '7px 18px', background: '#2e7d32', border: 'none',
-                borderRadius: 4, color: '#fff', fontWeight: 700, fontSize: 12, height: 34, cursor: 'pointer',
-              }}>Listeye Ekle</button>
-              <button onClick={() => setShowAddCustom(false)} style={{
-                padding: '7px 14px', background: '#fff', border: '1px solid #c8d0c8',
-                borderRadius: 4, fontSize: 12, color: '#4a5a4a', height: 34, cursor: 'pointer',
-              }}>{t.cancel}</button>
+              <div style={{ fontSize: 10, opacity: 0.9 }}>{activeCableProfile?.standard}</div>
             </div>
-          )}
+            <button onClick={resetToDefaults} style={{
+              padding: '3px 8px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.4)',
+              borderRadius: 3, color: '#fff', fontSize: 10, cursor: 'pointer',
+            }}>↺ Sıfırla</button>
+          </div>
 
-          {/* Formül Seçim Paneli: EK_2 Master Kütüphane Kategorileri */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
-            {EK2_MASTER_FORMULA_CATALOG.map(category => (
-              <div key={category.id} style={{ marginBottom: 24 }}>
+          {/* Test Plan Table matching Image 1 Right Table */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <div style={{
+              background: '#f0f2f0', padding: '6px 10px', fontSize: 10, fontWeight: 700, color: '#555',
+              display: 'grid', gridTemplateColumns: '30px 1fr 70px', borderBottom: '1px solid #ddd',
+            }}>
+              <span>#</span>
+              <span>Parametre Adı</span>
+              <span style={{ textAlign: 'right' }}>Kategori</span>
+            </div>
 
-                {/* Kategori Başlığı */}
-                <div style={{
-                  fontSize: 13, fontWeight: 700, color: '#2e7d32',
-                  paddingBottom: 6, marginBottom: 12,
-                  borderBottom: '2px solid #e8f5e9',
-                  display: 'flex', alignItems: 'center', gap: 8,
-                }}>
-                  <span>📐</span>
-                  <span>{lang === 'tr' ? category.titleTr : category.titleEn}</span>
-                </div>
-
-                {/* Kategoriye ait Formül Kartları */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-                  {category.formulas.map(formula => {
-                    const active = isFormulaActive(formula.id);
-                    return (
-                      <div
-                        key={formula.id}
-                        onClick={() => toggleFormula(formula)}
-                        style={{
-                          background: active ? '#fff' : '#fafafa',
-                          border: `2px solid ${active ? '#3d8b40' : '#e0e0e0'}`,
-                          borderRadius: 8, padding: '12px 14px',
-                          boxShadow: active ? '0 2px 6px rgba(61,139,64,0.15)' : 'none',
-                          cursor: 'pointer', transition: 'all 0.15s ease',
-                          display: 'flex', flexDirection: 'column', gap: 8,
-                          position: 'relative',
-                        }}
-                      >
-                        {/* Sol Üst Checkbox Badge */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <input
-                              type="checkbox"
-                              checked={active}
-                              onChange={() => {}} // handled by parent onClick
-                              style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#2e7d32' }}
-                            />
-                            <span style={{ fontSize: 12, fontWeight: 700, color: active ? '#1a2a1a' : '#777' }}>
-                              {formula.label}
-                            </span>
-                          </div>
-
-                          <span style={{
-                            fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
-                            background: active ? '#e8f5e9' : '#f0f0f0',
-                            color: active ? '#2e7d32' : '#888',
-                          }}>
-                            {active ? 'EKLE' : 'ÇIKART'}
-                          </span>
-                        </div>
-
-                        {/* Kırmızı Büyük Formül İfadesi (EK_2 & VELOX stili) */}
-                        <div style={{
-                          fontSize: 15, fontWeight: 700,
-                          color: active ? '#c62828' : '#9e9e9e',
-                          fontFamily: 'Cambria, Georgia, serif',
-                          padding: '6px 0',
-                          textAlign: 'center',
-                          letterSpacing: 0.3,
-                          background: active ? '#fff8f8' : '#f5f5f5',
-                          borderRadius: 4,
-                          border: `1px solid ${active ? '#ffebee' : '#eee'}`,
-                        }}>
-                          {formula.expression}
-                        </div>
-
-                        {/* Standart Etiketi */}
-                        {formula.standard && (
-                          <div style={{ fontSize: 9, color: '#2e7d32', fontWeight: 600, textAlign: 'right' }}>
-                            {formula.standard}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
+            {activeFormulas.length === 0 ? (
+              <div style={{ color: '#999', fontSize: 12, padding: 20, textAlign: 'center' }}>
+                Bu kablo için henüz parametre seçilmedi. Soldaki kütüphaneden parametre seçin.
               </div>
-            ))}
+            ) : (
+              activeFormulas.map((f, idx) => (
+                <div
+                  key={f.id}
+                  style={{
+                    display: 'grid', gridTemplateColumns: '30px 1fr 70px',
+                    padding: '8px 10px', borderBottom: '1px solid #eee', alignItems: 'center',
+                    fontSize: 11, background: idx % 2 === 0 ? '#fff' : '#fafafa',
+                  }}
+                >
+                  <span style={{ color: '#888', fontWeight: 700 }}>{idx + 1}</span>
+                  <div>
+                    <div style={{ fontWeight: 700, color: '#1a2a1a' }}>{f.label}</div>
+                    <div style={{ fontSize: 9, color: '#c62828', fontFamily: 'serif' }}>{f.expression}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: 9, background: '#e8f5e9', color: '#2e7d32', padding: '2px 5px', borderRadius: 3, fontWeight: 700 }}>
+                      {f.category}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Footer stats */}
+          <div style={{ padding: '8px 12px', background: '#f8faf8', borderTop: '1px solid #ddd', fontSize: 11, color: '#555', display: 'flex', justifyContent: 'space-between' }}>
+            <span>Toplam Parametre: <strong>{activeFormulas.length}</strong></span>
+            <span>Uyum: <strong>TS EN 60811</strong></span>
           </div>
 
         </div>

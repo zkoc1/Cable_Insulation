@@ -2,138 +2,151 @@ import type { CableTypeCategory } from '../core/interfaces/cable';
 
 export interface Formula {
   id: string;
-  category: string;
+  category: 'DIAMETER' | 'DISTANCES_FORMS' | 'WALLS' | 'AREAS_VOLUMES' | 'CONCENTRICITIES' | 'OTHERS';
   label: string;
   expression: string;
   standard?: string;
   enabled?: boolean;
 }
 
-export interface FormulaCategory {
-  id: string;
+export interface FormulaCategoryDef {
+  id: 'DIAMETER' | 'DISTANCES_FORMS' | 'WALLS' | 'AREAS_VOLUMES' | 'CONCENTRICITIES' | 'OTHERS';
   titleTr: string;
   titleEn: string;
   formulas: Formula[];
 }
 
 /**
- * Master catalog of all standard formulas defined in EK_2 specification.
- * Grouped into logical categories.
+ * VELOX / EK_2 Master Formula Library categorized by parameter types (Image 1)
  */
-export const EK2_MASTER_FORMULA_CATALOG: FormulaCategory[] = [
+export const EK2_MASTER_FORMULA_CATALOG: FormulaCategoryDef[] = [
   {
-    id: 'xlpe_hv',
-    titleTr: 'XLPE Yüksek Gerilim İzolasyon Formülleri',
-    titleEn: 'XLPE High Voltage Insulation Formulas',
+    id: 'DIAMETER',
+    titleTr: 'Diameter (Çap Ölçümleri)',
+    titleEn: 'Diameter Measurements',
     formulas: [
-      { id: 'xlpe_tmin', category: 'XLPE_HV', label: 'tmin (XLPE min kalınlık)', expression: 'tmin = min(t₁,…,t₆)', standard: 'TS EN 60811-201' },
-      { id: 'xlpe_tmax', category: 'XLPE_HV', label: 'tmax (XLPE max kalınlık)', expression: 'tmax = max(t₁,…,t₆)', standard: 'TS EN 60811-201' },
-      { id: 'xlpe_ic_min', category: 'XLPE_HV', label: 'tmin_iç (İç yarı iletken min)', expression: 'tmin_iç = min ölçüm', standard: 'TS EN 60811-201' },
-      { id: 'xlpe_ic_max', category: 'XLPE_HV', label: 'tmax_iç (İç yarı iletken max)', expression: 'tmax_iç = max ölçüm', standard: 'TS EN 60811-201' },
-      { id: 'xlpe_dis_min', category: 'XLPE_HV', label: 'tmin_dış (Dış yarı iletken min)', expression: 'tmin_dış = min ölçüm', standard: 'TS EN 60811-201' },
-      { id: 'xlpe_dis_max', category: 'XLPE_HV', label: 'tmax_dış (Dış yarı iletken max)', expression: 'tmax_dış = max ölçüm', standard: 'TS EN 60811-201' },
-      { id: 'xlpe_eccentricity', category: 'XLPE_HV', label: 'Eksen (Merkez) kaçıklığı', expression: 'e = √((x₁-x₂)² + (y₁-y₂)²) [mm]', standard: 'TS EN 60811' },
-      { id: 'xlpe_ovalite', category: 'XLPE_HV', label: 'Ovalite', expression: 'ovalite = dmax/dmin × 100 [%]', standard: 'TS EN 60811-201' },
-      { id: 'xlpe_kaçıklık', category: 'XLPE_HV', label: 'İzolasyon kaçıklığı', expression: 'kaçıklık = (tmax-tmin)/tmax × 100 [%]', standard: 'TS EN 60811-201' },
+      { id: 'd_outer_avg', category: 'DIAMETER', label: 'Diameter outer avg (contour)', expression: 'D_outer = 2 × r_dış [mm]', standard: 'TS EN 60811-201' },
+      { id: 'd_outer_min', category: 'DIAMETER', label: 'Diameter outer min', expression: 'D_min = 2 × r_dış_min [mm]', standard: 'TS EN 60811-201' },
+      { id: 'd_outer_max', category: 'DIAMETER', label: 'Diameter outer max', expression: 'D_max = 2 × r_dış_max [mm]', standard: 'TS EN 60811-201' },
+      { id: 'd_inner', category: 'DIAMETER', label: 'Diameter inner (WPs)', expression: 'D_inner = 2 × r_iletken [mm]', standard: 'TS EN 60811-201' },
     ]
   },
   {
-    id: 'tesisat_single',
-    titleTr: 'Tek Damarlı & Renkli Tesisat Kablosu Formülleri',
-    titleEn: 'Single Core & Multi-Color Installation Formulas',
+    id: 'DISTANCES_FORMS',
+    titleTr: 'Distances & Forms (Mesafe ve Şekiller)',
+    titleEn: 'Distances & Forms',
     formulas: [
-      { id: 'sing_tmin', category: 'TESISAT_SINGLE_COLOR', label: 'tmin (min izolasyon kalınlığı)', expression: 'tmin = min(t₁,…,t₆)', standard: 'TS EN 50525-1' },
-      { id: 'sing_tmax', category: 'TESISAT_SINGLE_COLOR', label: 'tmax (max izolasyon kalınlığı)', expression: 'tmax = max(t₁,…,t₆)', standard: 'TS EN 50525-1' },
-      { id: 'sing_color_ratio', category: 'TESISAT_SINGLE_COLOR', label: 'Renklerin birbirine oranı (y1+y2)', expression: '(y1+y2)/360 × 100 ≥ %30', standard: 'TS EN 50525-1' },
-      { id: 'sing_eccentricity', category: 'TESISAT_SINGLE_COLOR', label: 'Eksen kaçıklığı |O1-O2|', expression: 'e = |O1-O2| [mm]', standard: 'TS EN 50525-1' },
-      { id: 'sing_d_inner', category: 'TESISAT_SINGLE_COLOR', label: 'İç çap (D_inner)', expression: 'D_inner = 2 × r_iletken [mm]', standard: 'TS EN 50525-1' },
-      { id: 'sing_d_outer', category: 'TESISAT_SINGLE_COLOR', label: 'Dış çap (D_outer)', expression: 'D_outer = 2 × r_dış [mm]', standard: 'TS EN 50525-1' },
+      { id: 'y1_bridge', category: 'DISTANCES_FORMS', label: 'Bridge width (y1)', expression: 'y1 = sol-sağ damar arası [mm]', standard: 'TS EN 60811-202' },
+      { id: 'y2_bridge', category: 'DISTANCES_FORMS', label: 'Bridge height / Cable width (y2)', expression: 'y2 = köprü yüksekliği [mm]', standard: 'TS EN 60811-202' },
+      { id: 'cb_ridge', category: 'DISTANCES_FORMS', label: 'Ridge height (Çb)', expression: 'Çb = h_çıkıntı - h_nominal [mm]', standard: 'TS 11654' },
+      { id: 'cm_ridge', category: 'DISTANCES_FORMS', label: 'Ridge distance (Çm)', expression: 'Çm = arc(Ö₁,Ö₂) [mm]', standard: 'TS 11654' },
+      { id: 'color_ratio', category: 'DISTANCES_FORMS', label: 'Color ratio (y1+y2)', expression: '(y1+y2)/360 × 100 ≥ %30', standard: 'TS EN 50525-1' },
     ]
   },
   {
-    id: 'tesisat_multi',
-    titleTr: 'Çok Damarlı Tesisat Kablosu Formülleri',
-    titleEn: 'Multi-Core Cable Formulas',
+    id: 'WALLS',
+    titleTr: 'Walls (Et & İzolasyon Kalınlıkları)',
+    titleEn: 'Wall Thicknesses',
     formulas: [
-      { id: 'multi_t1', category: 'TESISAT_MULTI_CORE', label: 't1 (1. damar min kalınlık)', expression: 't1 = min ölçüm (damar 1)', standard: 'TS EN 60811-202' },
-      { id: 'multi_t2', category: 'TESISAT_MULTI_CORE', label: 't2 (2. damar min kalınlık)', expression: 't2 = min ölçüm (damar 2)', standard: 'TS EN 60811-202' },
-      { id: 'multi_t3', category: 'TESISAT_MULTI_CORE', label: 't3 (3. damar min kalınlık)', expression: 't3 = min ölçüm (damar 3)', standard: 'TS EN 60811-202' },
-      { id: 'multi_eccentricity', category: 'TESISAT_MULTI_CORE', label: 'Eksen kaçıklığı |O1-O2|', expression: 'e = √((x₁-x₂)²+(y₁-y₂)²)', standard: 'TS EN 60811-202' },
-      { id: 'multi_d_outer', category: 'TESISAT_MULTI_CORE', label: 'Dış çap', expression: 'D_outer = 2 × r_dış', standard: 'TS EN 60811-202' },
+      { id: 'wall_tmin', category: 'WALLS', label: 'Wall thickness min', expression: 'tmin = min(t₁,…,t₆) [mm]', standard: 'TS EN 60811-201' },
+      { id: 'wall_tmax', category: 'WALLS', label: 'Wall thickness max', expression: 'tmax = max(t₁,…,t₆) [mm]', standard: 'TS EN 60811-201' },
+      { id: 'wall_tavg', category: 'WALLS', label: 'Wall thickness avg', expression: 't_ort = (t₁+t₂+…+t₆)/6 [mm]', standard: 'TS EN 60811-201' },
+      { id: 'wall_ic_min', category: 'WALLS', label: 'Inner semiconductor min', expression: 'tmin_iç = min ölçüm [mm]', standard: 'TS EN 60811-201' },
+      { id: 'wall_ic_max', category: 'WALLS', label: 'Inner semiconductor max', expression: 'tmax_iç = max ölçüm [mm]', standard: 'TS EN 60811-201' },
+      { id: 'wall_dis_min', category: 'WALLS', label: 'Outer semiconductor min', expression: 'tmin_dış = min ölçüm [mm]', standard: 'TS EN 60811-201' },
+      { id: 'wall_dis_max', category: 'WALLS', label: 'Outer semiconductor max', expression: 'tmax_dış = max ölçüm [mm]', standard: 'TS EN 60811-201' },
+      { id: 'multi_t1', category: 'WALLS', label: 'Core 1 min thickness (t1)', expression: 't1 = min ölçüm (damar 1) [mm]', standard: 'TS EN 60811-202' },
+      { id: 'multi_t2', category: 'WALLS', label: 'Core 2 min thickness (t2)', expression: 't2 = min ölçüm (damar 2) [mm]', standard: 'TS EN 60811-202' },
+      { id: 'multi_t3', category: 'WALLS', label: 'Core 3 min thickness (t3)', expression: 't3 = min ölçüm (damar 3) [mm]', standard: 'TS EN 60811-202' },
     ]
   },
   {
-    id: 'tesisat_nya',
-    titleTr: 'Som & Çok Telli (NYAF / NYA) Formülleri',
-    titleEn: 'Stranded & Solid Wire Formulas',
+    id: 'AREAS_VOLUMES',
+    titleTr: 'Areas & Volumes (Alanlar ve Hacimler)',
+    titleEn: 'Areas & Volumes',
     formulas: [
-      { id: 'nyaf_tmin', category: 'TESISAT_NYAF_SOM', label: 'tmin (min kalınlık)', expression: 'tmin = min(t₁,…,t₆)', standard: 'TS EN 60811-202' },
-      { id: 'nyaf_tmax', category: 'TESISAT_NYAF_SOM', label: 'tmax (max kalınlık)', expression: 'tmax = max(t₁,…,t₆)', standard: 'TS EN 60811-202' },
-      { id: 'nyaf_eccentricity', category: 'TESISAT_NYAF_SOM', label: 'Eksen kaçıklığı |O1-O2|', expression: 'e = |O1-O2| [mm]', standard: 'TS EN 60811-202' },
-      { id: 'nyaf_d_inner', category: 'TESISAT_NYAF_SOM', label: 'İç çap', expression: 'D_inner = 2 × r_iletken', standard: 'TS EN 60811-202' },
-      { id: 'nyaf_d_outer', category: 'TESISAT_NYAF_SOM', label: 'Dış çap', expression: 'D_outer = 2 × r_dış', standard: 'TS EN 60811-202' },
+      { id: 'area_real', category: 'AREAS_VOLUMES', label: 'Cross-section real area', expression: 'A_iso = π × (r_dış² - r_iç²) [mm²]', standard: 'TS EN 60811-201' },
+      { id: 'area_conductor', category: 'AREAS_VOLUMES', label: 'Conductor cross-section area', expression: 'A_cond = π × r_iç² [mm²]', standard: 'TS EN 60811-201' },
     ]
   },
   {
-    id: 'aer_cable',
-    titleTr: 'AER Kablo Çıkıntı ve Mesafe Formülleri',
-    titleEn: 'AER Ridge & Distance Formulas',
+    id: 'CONCENTRICITIES',
+    titleTr: 'Concentricities (Kaçıklık & Ovalite)',
+    titleEn: 'Concentricities & Eccentricity',
     formulas: [
-      { id: 'aer_tmin', category: 'AER', label: 'tmin (min izolasyon)', expression: 'tmin = min(t₁,…,t₆)', standard: 'TS 11654' },
-      { id: 'aer_tmax', category: 'AER', label: 'tmax (max izolasyon)', expression: 'tmax = max(t₁,…,t₆)', standard: 'TS 11654' },
-      { id: 'aer_cb', category: 'AER', label: 'Çıkıntı boyu (Çb)', expression: 'Çb = h_çıkıntı - h_nominal [mm]', standard: 'TS 11654' },
-      { id: 'aer_cm', category: 'AER', label: 'Çıkıntılar arası mesafe (Çm)', expression: 'Çm = arc(Ö₁,Ö₂) [mm]', standard: 'TS 11654' },
-      { id: 'aer_eccentricity', category: 'AER', label: 'Eksen kaçıklığı', expression: 'e = |O1-O2| [mm]', standard: 'TS 11654' },
+      { id: 'centricity', category: 'CONCENTRICITIES', label: 'Concentricity (tmin/tmax)', expression: 'Concentricity = (tmin / tmax) × 100 [%]', standard: 'TS EN 60811-201' },
+      { id: 'eccentricity', category: 'CONCENTRICITIES', label: 'Decentricity [VCE] |O1-O2|', expression: 'e = √((x₁-x₂)² + (y₁-y₂)²) [mm]', standard: 'TS EN 60811-201' },
+      { id: 'ovalite', category: 'CONCENTRICITIES', label: 'Ovality / Ovalness', expression: 'ovalite = (dmax / dmin) × 100 [%]', standard: 'TS EN 60811-201' },
+      { id: 'kaçıklık_iso', category: 'CONCENTRICITIES', label: 'Isolation eccentricity ratio', expression: 'kaç = ((tmax-tmin)/tmax) × 100 [%]', standard: 'TS EN 60811-201' },
     ]
   },
   {
-    id: 'nyif_cable',
-    titleTr: 'NYIF Yassı Köprülü Kablo Formülleri',
-    titleEn: 'NYIF Flat Bridge Cable Formulas',
+    id: 'OTHERS',
+    titleTr: 'Others (Diğer / Özel Formüller)',
+    titleEn: 'Others / Special Standards',
     formulas: [
-      { id: 'nyif_tmin', category: 'NYIF', label: 'tmin (min kalınlık)', expression: 'tmin = min(t₁,…,t₆)', standard: 'TS EN 60811-202' },
-      { id: 'nyif_tmax', category: 'NYIF', label: 'tmax (max kalınlık)', expression: 'tmax = max(t₁,…,t₆)', standard: 'TS EN 60811-202' },
-      { id: 'nyif_y1', category: 'NYIF', label: 'y1 (köprü genişliği)', expression: 'y1 = sol-sağ damar arası [mm]', standard: 'TS EN 60811-202' },
-      { id: 'nyif_y2', category: 'NYIF', label: 'y2 (köprü yüksekliği)', expression: 'y2 = köprü yüksekliği [mm]', standard: 'TS EN 60811-202' },
-    ]
-  },
-  {
-    id: 'yassi_ttr',
-    titleTr: 'Yassı TTR Kablo Formülleri',
-    titleEn: 'Flat TTR Cable Formulas',
-    formulas: [
-      { id: 'ttr_t1max', category: 'YASSI_TTR', label: 't1_max = max(t₁,…,t₆)', expression: 't1max = max(t₁,t₂,t₃,t₄,t₅,t₆)', standard: 'TS EN 60811-202' },
-      { id: 'ttr_t1min', category: 'YASSI_TTR', label: 't1_min = min(t₁,…,t₆)', expression: 't1min = min(t₁,t₂,t₃,t₄,t₅,t₆)', standard: 'TS EN 60811-202' },
-      { id: 'ttr_t1ort', category: 'YASSI_TTR', label: 't1_ort = ortalama', expression: 't1ort = (t₁+t₂+…+t₆)/6', standard: 'TS EN 60811-202' },
-      { id: 'ttr_t2max', category: 'YASSI_TTR', label: 't2_max = max(t₇,t₈)', expression: 't2max = max(t₇,t₈)', standard: 'TS EN 60811-202' },
-      { id: 'ttr_t2min', category: 'YASSI_TTR', label: 't2_min = min(t₇,t₈)', expression: 't2min = min(t₇,t₈)', standard: 'TS EN 60811-202' },
-      { id: 'ttr_y1', category: 'YASSI_TTR', label: 'y1 (kablo yüksekliği)', expression: 'y1 [mm]', standard: 'TS EN 60811-202' },
-      { id: 'ttr_y2', category: 'YASSI_TTR', label: 'y2 (kablo genişliği)', expression: 'y2 [mm]', standard: 'TS EN 60811-202' },
-    ]
-  },
-  {
-    id: 'sektor_cable',
-    titleTr: 'Sektör Kablo Formülleri',
-    titleEn: 'Sector Cable Formulas',
-    formulas: [
-      { id: 'sektor_tmin', category: 'SEKTOR', label: 'tmin (min kalınlık)', expression: 'tmin = min(t₁,…,t₆)', standard: 'TS EN 60811-202' },
-      { id: 'sektor_eccentricity', category: 'SEKTOR', label: 'Eksen kaçıklığı |O1-O2|', expression: 'e = |O1-O2| [mm]', standard: 'TS EN 60811-202' },
+      { id: 'custom_std', category: 'OTHERS', label: 'Standard compliance ratio', expression: 'Spec_SN = (tmin / t_nominal) × 100 [%]', standard: 'TS EN 60811-201' },
     ]
   }
 ];
 
 export const DEFAULT_FORMULAS: Record<string, Formula[]> = {
-  XLPE_HV: EK2_MASTER_FORMULA_CATALOG[0].formulas,
-  TESISAT_SINGLE_COLOR: EK2_MASTER_FORMULA_CATALOG[1].formulas,
-  TESISAT_MULTI_CORE: EK2_MASTER_FORMULA_CATALOG[2].formulas,
-  TESISAT_NYAF_SOM: EK2_MASTER_FORMULA_CATALOG[3].formulas,
-  AER: EK2_MASTER_FORMULA_CATALOG[4].formulas,
-  NYIF: EK2_MASTER_FORMULA_CATALOG[5].formulas,
-  YASSI_TTR: EK2_MASTER_FORMULA_CATALOG[6].formulas,
-  SEKTOR: EK2_MASTER_FORMULA_CATALOG[7].formulas,
+  XLPE_HV: [
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[0], // wall_tmin
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[1], // wall_tmax
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[2], // wall_tavg
+    EK2_MASTER_FORMULA_CATALOG[4].formulas[0], // centricity
+    EK2_MASTER_FORMULA_CATALOG[0].formulas[0], // d_outer_avg
+    EK2_MASTER_FORMULA_CATALOG[3].formulas[0], // area_real
+  ],
+  TESISAT_SINGLE_COLOR: [
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[0], // wall_tmin
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[1], // wall_tmax
+    EK2_MASTER_FORMULA_CATALOG[1].formulas[4], // color_ratio
+    EK2_MASTER_FORMULA_CATALOG[4].formulas[1], // eccentricity
+    EK2_MASTER_FORMULA_CATALOG[0].formulas[3], // d_inner
+    EK2_MASTER_FORMULA_CATALOG[0].formulas[0], // d_outer_avg
+  ],
+  TESISAT_MULTI_CORE: [
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[7], // multi_t1
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[8], // multi_t2
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[9], // multi_t3
+    EK2_MASTER_FORMULA_CATALOG[4].formulas[1], // eccentricity
+    EK2_MASTER_FORMULA_CATALOG[0].formulas[0], // d_outer_avg
+  ],
+  TESISAT_NYAF_SOM: [
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[0], // wall_tmin
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[1], // wall_tmax
+    EK2_MASTER_FORMULA_CATALOG[4].formulas[1], // eccentricity
+    EK2_MASTER_FORMULA_CATALOG[0].formulas[3], // d_inner
+    EK2_MASTER_FORMULA_CATALOG[0].formulas[0], // d_outer_avg
+  ],
+  AER: [
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[0], // wall_tmin
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[1], // wall_tmax
+    EK2_MASTER_FORMULA_CATALOG[1].formulas[2], // cb_ridge
+    EK2_MASTER_FORMULA_CATALOG[1].formulas[3], // cm_ridge
+    EK2_MASTER_FORMULA_CATALOG[4].formulas[1], // eccentricity
+  ],
+  NYIF: [
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[0], // wall_tmin
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[1], // wall_tmax
+    EK2_MASTER_FORMULA_CATALOG[1].formulas[0], // y1_bridge
+    EK2_MASTER_FORMULA_CATALOG[1].formulas[1], // y2_bridge
+  ],
+  YASSI_TTR: [
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[0], // wall_tmin
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[1], // wall_tmax
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[2], // wall_tavg
+    EK2_MASTER_FORMULA_CATALOG[1].formulas[1], // y2_bridge
+  ],
+  SEKTOR: [
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[0], // wall_tmin
+    EK2_MASTER_FORMULA_CATALOG[4].formulas[1], // eccentricity
+  ],
 };
 
-const STORAGE_KEY = 'cable_formulas_v2';
+const STORAGE_KEY = 'cable_formulas_v3';
 
 export class FormulaService {
 
@@ -170,4 +183,3 @@ export class FormulaService {
     return all[cableType] || DEFAULT_FORMULAS[cableType] || [];
   }
 }
-
