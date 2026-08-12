@@ -67,9 +67,23 @@ export const MeasurementScreen: React.FC = () => {
     setIsProcessing(true);
     setProcessedResult(null);
 
-    // Composite VELOX colorized section with radial measurement lines (Image 5)
+    // Grab real camera frame if live camera stream is active
+    let rawFrame: string | null = null;
+    if (videoRef.current && snapCanvas.current && camState === 'live') {
+      const vid = videoRef.current;
+      const cnv = snapCanvas.current;
+      cnv.width = vid.videoWidth || 640;
+      cnv.height = vid.videoHeight || 480;
+      const ctx = cnv.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(vid, 0, 0, cnv.width, cnv.height);
+        rawFrame = cnv.toDataURL('image/jpeg', 0.92);
+      }
+    }
+
+    // Composite VELOX colorized section with radial measurement lines (Image 5) over camera frame or clean canvas
     const { imagePath, measurementData } = await MeasurementOverlayService.createCompositedSnapshot(
-      null,
+      rawFrame,
       targetCableType,
       640,
       480
@@ -91,7 +105,7 @@ export const MeasurementScreen: React.FC = () => {
       setCamState('snapshot');
       setIsProcessing(false);
     }, 1100);
-  }, [orderNumber, notes, session.username]);
+  }, [camState, orderNumber, notes, session.username]);
 
   // Handle Cable Type selection
   const handleSelectCable = (type: CableTypeCategory) => {

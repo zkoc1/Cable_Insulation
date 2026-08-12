@@ -23,7 +23,6 @@ export class MeasurementOverlayService {
     W: number,
     H: number
   ): DynamicMeasurementData {
-
     const cx = W / 2;
     const cy = H / 2;
     const baseR = Math.min(W, H) * 0.32;
@@ -41,13 +40,15 @@ export class MeasurementOverlayService {
 
   /**
    * Renders VELOX Colorized Cable Cross-Section with Radial Measurement Lines (Image 5)
+   * Can be drawn as a semi-transparent overlay over camera photo OR as a standalone clean view.
    */
   public static drawOverlay(
     ctx: CanvasRenderingContext2D,
     W: number,
     H: number,
     cableType: CableTypeCategory,
-    dynamicData?: DynamicMeasurementData
+    dynamicData?: DynamicMeasurementData,
+    hasCameraPhoto = false
   ) {
     const data = dynamicData || MeasurementOverlayService.analyzeFrame(ctx, W, H);
     const cx = data.cx;
@@ -55,9 +56,15 @@ export class MeasurementOverlayService {
     const rOut = data.rOuterPx;
     const rIn  = data.rInnerPx;
 
-    // Fill white background for high-contrast inspection clean view
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, W, H);
+    // Fill white background ONLY if no real camera photo is present
+    if (!hasCameraPhoto) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // Layer Fill Colors (semi-transparent if over camera photo, opaque if standalone)
+    const redLayerFill = hasCameraPhoto ? 'rgba(220, 38, 38, 0.45)' : '#dc2626';
+    const yellowLayerFill = hasCameraPhoto ? 'rgba(250, 204, 21, 0.50)' : '#facc15';
 
     // ── VELOX COLORIZED LAYER RENDERING (Image 5) ─────────────────────────
 
@@ -70,20 +77,20 @@ export class MeasurementOverlayService {
         const rInnerCore = Math.min(W, H) * 0.07;
 
         // Bridge background mask
-        ctx.fillStyle = '#dc2626'; // Red Insulation
+        ctx.fillStyle = redLayerFill;
         ctx.fillRect(cx - offset, cy - rOuterCore, offset * 2, rOuterCore * 2);
 
         [-offset, offset].forEach(offX => {
           // Red Insulation Mask
           ctx.beginPath();
           ctx.arc(cx + offX, cy, rOuterCore, 0, Math.PI * 2);
-          ctx.fillStyle = '#dc2626';
+          ctx.fillStyle = redLayerFill;
           ctx.fill();
 
           // Yellow Inner Core
           ctx.beginPath();
           ctx.arc(cx + offX, cy, rInnerCore, 0, Math.PI * 2);
-          ctx.fillStyle = '#facc15';
+          ctx.fillStyle = yellowLayerFill;
           ctx.fill();
           ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 2.5; ctx.stroke();
 
@@ -110,17 +117,17 @@ export class MeasurementOverlayService {
         const rOuterCore = Math.min(W, H) * 0.12;
         const rInnerCore = Math.min(W, H) * 0.06;
 
-        ctx.fillStyle = '#dc2626';
+        ctx.fillStyle = redLayerFill;
         ctx.fillRect(cx - gap, cy - rOuterCore, gap * 2, rOuterCore * 2);
 
         [-gap, 0, gap].forEach(offX => {
           ctx.beginPath();
           ctx.arc(cx + offX, cy, rOuterCore, 0, Math.PI * 2);
-          ctx.fillStyle = '#dc2626'; ctx.fill();
+          ctx.fillStyle = redLayerFill; ctx.fill();
 
           ctx.beginPath();
           ctx.arc(cx + offX, cy, rInnerCore, 0, Math.PI * 2);
-          ctx.fillStyle = '#facc15'; ctx.fill();
+          ctx.fillStyle = yellowLayerFill; ctx.fill();
           ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 2.5; ctx.stroke();
 
           ctx.beginPath();
@@ -145,9 +152,10 @@ export class MeasurementOverlayService {
         const rInnerCore = Math.min(W, H) * 0.07;
         const angles = [-Math.PI / 2, Math.PI / 6, (5 * Math.PI) / 6];
 
-        // Black outer jacket
-        ctx.beginPath(); ctx.arc(cx, cy, rOut, 0, Math.PI * 2);
-        ctx.fillStyle = '#1e293b'; ctx.fill();
+        if (!hasCameraPhoto) {
+          ctx.beginPath(); ctx.arc(cx, cy, rOut, 0, Math.PI * 2);
+          ctx.fillStyle = '#1e293b'; ctx.fill();
+        }
         ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 3; ctx.stroke();
 
         angles.forEach(a => {
@@ -155,10 +163,10 @@ export class MeasurementOverlayService {
           const py = cy + Math.sin(a) * dist;
 
           ctx.beginPath(); ctx.arc(px, py, rOuterCore, 0, Math.PI * 2);
-          ctx.fillStyle = '#dc2626'; ctx.fill();
+          ctx.fillStyle = redLayerFill; ctx.fill();
 
           ctx.beginPath(); ctx.arc(px, py, rInnerCore, 0, Math.PI * 2);
-          ctx.fillStyle = '#facc15'; ctx.fill();
+          ctx.fillStyle = yellowLayerFill; ctx.fill();
           ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 2; ctx.stroke();
 
           // Radial thickness lines
@@ -174,36 +182,39 @@ export class MeasurementOverlayService {
       default: {
         const rSemi = rIn * 0.72;
 
-        // Black Outer Sheath / Border
-        ctx.beginPath(); ctx.arc(cx, cy, rOut + 6, 0, Math.PI * 2);
-        ctx.fillStyle = '#0f172a'; ctx.fill();
+        if (!hasCameraPhoto) {
+          ctx.beginPath(); ctx.arc(cx, cy, rOut + 6, 0, Math.PI * 2);
+          ctx.fillStyle = '#0f172a'; ctx.fill();
+        }
         ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 3.5; ctx.stroke();
 
-        // BRIGHT RED Insulation Wall Layer (Image 5)
+        // RED Insulation Wall Layer (Image 5)
         ctx.beginPath();
         ctx.arc(cx, cy, rOut, 0, Math.PI * 2, false);
         ctx.arc(cx, cy, rIn, 0, Math.PI * 2, true);
-        ctx.fillStyle = '#dc2626'; ctx.fill();
+        ctx.fillStyle = redLayerFill; ctx.fill();
         ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 2.5; ctx.stroke();
 
-        // BRIGHT YELLOW Inner Layer / Core (Image 5)
+        // YELLOW Inner Layer / Core (Image 5)
         ctx.beginPath();
         ctx.arc(cx, cy, rIn, 0, Math.PI * 2, false);
         ctx.arc(cx, cy, rSemi, 0, Math.PI * 2, true);
-        ctx.fillStyle = '#facc15'; ctx.fill();
+        ctx.fillStyle = yellowLayerFill; ctx.fill();
         ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 2; ctx.stroke();
 
-        // White Multi-strand Flower / Star Conductor Center (Image 3, 5)
-        ctx.beginPath();
-        const numStrands = 6;
-        for (let i = 0; i < numStrands; i++) {
-          const a = (i * 2 * Math.PI) / numStrands;
-          const sx = cx + Math.cos(a) * (rSemi * 0.45);
-          const sy = cy + Math.sin(a) * (rSemi * 0.45);
-          ctx.arc(sx, sy, rSemi * 0.35, 0, Math.PI * 2);
+        // Multi-strand Flower / Star Conductor Center (Image 3, 5)
+        if (!hasCameraPhoto) {
+          ctx.beginPath();
+          const numStrands = 6;
+          for (let i = 0; i < numStrands; i++) {
+            const a = (i * 2 * Math.PI) / numStrands;
+            const sx = cx + Math.cos(a) * (rSemi * 0.45);
+            const sy = cy + Math.sin(a) * (rSemi * 0.45);
+            ctx.arc(sx, sy, rSemi * 0.35, 0, Math.PI * 2);
+          }
+          ctx.fillStyle = '#ffffff'; ctx.fill();
+          ctx.strokeStyle = '#334155'; ctx.lineWidth = 1.5; ctx.stroke();
         }
-        ctx.fillStyle = '#ffffff'; ctx.fill();
-        ctx.strokeStyle = '#334155'; ctx.lineWidth = 1.5; ctx.stroke();
 
         // BLUE & RED RADIAL MEASUREMENT LINES (Image 5)
         for (let i = 0; i < 6; i++) {
@@ -228,12 +239,11 @@ export class MeasurementOverlayService {
   }
 
   public static async createCompositedSnapshot(
-    _sourceImageDataUrl: string | null,
+    sourceImageDataUrl: string | null,
     cableType: CableTypeCategory,
     width = 640,
     height = 480
   ): Promise<{ imagePath: string; measurementData: DynamicMeasurementData }> {
-
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
@@ -247,8 +257,23 @@ export class MeasurementOverlayService {
 
     if (!ctx) return { imagePath: '', measurementData: dynamicData };
 
-    // Always draw high-precision VELOX colorized section with radial thickness lines
-    MeasurementOverlayService.drawOverlay(ctx, width, height, cableType, dynamicData);
+    let hasPhoto = false;
+
+    if (sourceImageDataUrl) {
+      await new Promise<void>((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, width, height);
+          hasPhoto = true;
+          resolve();
+        };
+        img.onerror = () => resolve();
+        img.src = sourceImageDataUrl;
+      });
+    }
+
+    // Draw optical colorized shape mask + radial lines on top of the camera photo or clean canvas
+    MeasurementOverlayService.drawOverlay(ctx, width, height, cableType, dynamicData, hasPhoto);
 
     return {
       imagePath: canvas.toDataURL('image/jpeg', 0.95),
