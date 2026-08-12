@@ -2,13 +2,13 @@ import React, { useRef, useState, useCallback } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { CABLE_PROFILES } from '../../core/data/profiles';
 import { translations } from '../../core/i18n/translations';
-import { CableCanvas } from '../cable/CableCanvas';
 import { CableIcon } from '../cable/CableIcon';
 import { MeasurementCalculationService } from '../../services/MeasurementCalculationService';
 import { MeasurementOverlayService } from '../../services/MeasurementOverlayService';
 import type { CableTypeCategory } from '../../core/interfaces/cable';
 
 type CamState = 'off' | 'live' | 'snapshot';
+type ProcessingPhase = 'idle' | 'red' | 'green' | 'blue' | 'complete';
 
 export const MeasurementScreen: React.FC = () => {
   const {
@@ -29,6 +29,7 @@ export const MeasurementScreen: React.FC = () => {
   const [camError, setCamError] = useState('');
   const [snapshotData, setSnapshotData] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingPhase, setProcessingPhase] = useState<ProcessingPhase>('idle');
   const [processedResult, setProcessedResult] = useState<import('../../core/interfaces/cable').IMeasurementResult | null>(null);
 
   const selected = CABLE_PROFILES.find(p => p.id === selectedCable);
@@ -60,12 +61,25 @@ export const MeasurementScreen: React.FC = () => {
     if (videoRef.current) videoRef.current.srcObject = null;
     setCamState('off');
     setIsProcessing(false);
+    setProcessingPhase('idle');
   }, []);
 
-  // Trigger VELOX Image Processing Workflow (Images 3, 4, 5)
+  // Back Button Action
+  const handleGoBack = () => {
+    setSnapshotData(null);
+    setProcessedResult(null);
+    setIsProcessing(false);
+    setProcessingPhase('idle');
+    if (camState === 'live') {
+      stopCamera();
+    }
+  };
+
+  // Multi-Flash RGB Lighting Sequence & Image Processing (Photos 3, 4, 5)
   const runImageProcessing = useCallback(async (targetCableType: CableTypeCategory) => {
     setIsProcessing(true);
     setProcessedResult(null);
+    setProcessingPhase('red');
 
     // Grab real camera frame if live camera stream is active
     let rawFrame: string | null = null;
@@ -81,7 +95,17 @@ export const MeasurementScreen: React.FC = () => {
       }
     }
 
-    // Composite VELOX colorized section with radial measurement lines (Image 5) over camera frame or clean canvas
+    // Step 2: Green Light Flash (350ms)
+    setTimeout(() => {
+      setProcessingPhase('green');
+    }, 350);
+
+    // Step 3: Blue Light Flash (700ms)
+    setTimeout(() => {
+      setProcessingPhase('blue');
+    }, 700);
+
+    // Composite final colorized section with radial lines (Photo 3)
     const { imagePath, measurementData } = await MeasurementOverlayService.createCompositedSnapshot(
       rawFrame,
       targetCableType,
@@ -89,7 +113,7 @@ export const MeasurementScreen: React.FC = () => {
       480
     );
 
-    // Simulate processing delay (Image 4: PROCESSING..)
+    // Step 4: Completion (1050ms)
     setTimeout(() => {
       const result = MeasurementCalculationService.calculate(
         targetCableType,
@@ -104,7 +128,8 @@ export const MeasurementScreen: React.FC = () => {
       setProcessedResult(result);
       setCamState('snapshot');
       setIsProcessing(false);
-    }, 1100);
+      setProcessingPhase('complete');
+    }, 1050);
   }, [camState, orderNumber, notes, session.username]);
 
   // Handle Cable Type selection
@@ -128,25 +153,40 @@ export const MeasurementScreen: React.FC = () => {
       {/* ── Sol: Cable Cross-Section Viewport (Images 3, 4, 5 Left Panel) ── */}
       <div style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', background: '#ffffff', minWidth: 0, borderRight: '2px solid #ccc', position: 'relative' }}>
 
-        {/* Viewport header */}
+        {/* Viewport Header Bar + Geri (Back) Button */}
         <div style={{
-          height: 32, background: '#f0f2f0', display: 'flex',
-          alignItems: 'center', padding: '0 14px', gap: 10, borderBottom: '1px solid #ddd',
+          height: 36, background: '#f0f2f0', display: 'flex',
+          alignItems: 'center', padding: '0 14px', gap: 12, borderBottom: '1px solid #ddd',
         }}>
+          {/* ← Geri Button */}
+          <button
+            onClick={handleGoBack}
+            style={{
+              padding: '4px 10px', background: '#fff', border: '1px solid #bbb',
+              borderRadius: 4, fontSize: 11, fontWeight: 700, color: '#3d8b40',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            ← Geri
+          </button>
+
           <span style={{
             width: 9, height: 9, borderRadius: '50%',
             background: isProcessing ? '#00e676' : camState === 'live' ? '#2e7d32' : camState === 'snapshot' ? '#f59e0b' : '#888',
             display: 'inline-block',
           }} />
           <span style={{ color: '#333', fontSize: 11, fontWeight: 700 }}>
-            {isProcessing ? 'STATE-OF-THE-ART IMAGE PROCESSING ALGORITHMS' : 'Measuring field M'}
+            {isProcessing ? `RGB FLASH LIGHT SCAN (${processingPhase.toUpperCase()})` : 'Measuring field M'}
           </span>
           {camError && <span style={{ color: '#f55', fontSize: 11, marginLeft: 8 }}>⚠ {camError}</span>}
         </div>
 
-        {/* Cable Image Center Area */}
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden', background: '#ffffff', padding: 20 }}>
-          {/* Canlı Video Stream */}
+        {/* Cable Image Center Viewport */}
+        <div style={{
+          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          position: 'relative', overflow: 'hidden', background: '#ffffff', padding: 20,
+        }}>
+          {/* Canlı Video Stream with Multi-Flash Lighting Filters (Photos 4, 5) */}
           <video
             ref={videoRef}
             autoPlay
@@ -155,11 +195,16 @@ export const MeasurementScreen: React.FC = () => {
             style={{
               display: camState === 'live' ? 'block' : 'none',
               width: '100%', height: '100%', objectFit: 'contain',
+              filter: processingPhase === 'red' ? 'sepia(1) hue-rotate(320deg) saturate(4)'
+                    : processingPhase === 'green' ? 'sepia(1) hue-rotate(90deg) saturate(5)'
+                    : processingPhase === 'blue' ? 'brightness(1.2) contrast(1.4)'
+                    : 'none',
+              transition: 'filter 0.2s ease',
             }}
           />
           <canvas ref={snapCanvas} style={{ display: 'none' }} />
 
-          {/* Colorized Processed Image with Radial Lines (Image 5 Left) */}
+          {/* Colorized Processed Image with Radial Lines (Photo 3) */}
           {camState === 'snapshot' && snapshotData && (
             <img
               src={snapshotData}
@@ -168,18 +213,24 @@ export const MeasurementScreen: React.FC = () => {
             />
           )}
 
-          {/* Standby Viewport Image (Image 3 Left) */}
+          {/* Standby Viewport: Plain Blank White (Photo 2 Exactly) */}
           {camState === 'off' && !snapshotData && (
-            <CableCanvas cableType={selectedCable} width={520} height={420} />
+            <div style={{
+              width: '100%', height: '100%', background: '#ffffff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#bbb', fontSize: 13, border: '1px dashed #e0e0e0', borderRadius: 4,
+            }}>
+              Kamera kapalı. Başlat veya profil seç.
+            </div>
           )}
         </div>
 
-        {/* Bottom Control Bar (Image 3, 4, 5 Bottom Left) */}
+        {/* Bottom Control Bar */}
         <div style={{
           padding: '8px 16px', background: '#f0f2f0', borderTop: '1px solid #ddd',
           display: 'flex', alignItems: 'center', gap: 10,
         }}>
-          {/* Play / Process Button (Image 3, 4, 5) */}
+          {/* Play / Process Button */}
           <button
             onClick={() => runImageProcessing(selectedCable)}
             disabled={isProcessing}
@@ -211,10 +262,10 @@ export const MeasurementScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Sağ: VELOX Parameter / Results Panel (Images 3, 4, 5 Right Panel) ── */}
+      {/* ── Sağ: VELOX Parameter / Results Panel (Photos 3, 4, 5 Right Panel) ── */}
       <div style={{ width: 440, background: '#f4f6f4', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* 1. STATE: PROCESSING ANIMATION (Image 4 Right Side) */}
+        {/* 1. STATE: PROCESSING ANIMATION (Photo 4 & 5 Right Side) */}
         {isProcessing ? (
           <div style={{
             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -223,20 +274,20 @@ export const MeasurementScreen: React.FC = () => {
             <div style={{
               fontSize: 26, fontWeight: 900, color: '#40c040',
               letterSpacing: 2, fontFamily: 'monospace',
-              animation: 'blink 0.8s infinite alternate',
+              animation: 'blink 0.6s infinite alternate',
             }}>
               PROCESSING..
             </div>
-            <div style={{ fontSize: 12, color: '#666' }}>
-              Kenar ve katman renklendirme algoritması çalışıyor...
+            <div style={{ fontSize: 11, color: '#666', fontFamily: 'monospace' }}>
+              Flash Işık & Katman Renklendirme Algoritması ({processingPhase.toUpperCase()})
             </div>
           </div>
         ) : processedResult ? (
 
-          /* 2. STATE: PROCESSED RESULTS & TEST PLAN TABLE (Image 5 Right Side) */
+          /* 2. STATE: PROCESSED RESULTS & TEST PLAN TABLE (Photo 3 Right Side) */
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' }}>
 
-            {/* Test plan header bar matching Image 5 */}
+            {/* Test plan header bar */}
             <div style={{
               background: '#3d8b40', color: '#fff', padding: '8px 12px',
               fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -247,7 +298,7 @@ export const MeasurementScreen: React.FC = () => {
               </span>
             </div>
 
-            {/* Results Table matching Image 5 Right Panel */}
+            {/* Results Table matching Photo 3 Right Panel */}
             <div style={{ flex: 1, overflowY: 'auto' }}>
 
               {/* Layer 01 - Outerlayer */}
@@ -273,7 +324,7 @@ export const MeasurementScreen: React.FC = () => {
                   style={{
                     display: 'grid', gridTemplateColumns: '1fr 80px 45px 40px',
                     padding: '6px 12px', borderBottom: '1px solid #eee', alignItems: 'center',
-                    fontSize: 11, background: p.passed ? '#daf2da' : '#ffebee', // Green highlighted rows (Image 5)
+                    fontSize: 11, background: p.passed ? '#daf2da' : '#ffebee',
                   }}
                 >
                   <span style={{ fontWeight: 600, color: '#1a2a1a' }}>{p.nameEn}</span>
@@ -311,7 +362,7 @@ export const MeasurementScreen: React.FC = () => {
           </div>
         ) : (
 
-          /* 3. STATE: CABLE TYPE SELECTION GRID (Image 3 Right Side) */
+          /* 3. STATE: CABLE TYPE SELECTION GRID */
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' }}>
             <div style={{ padding: '8px 12px', background: '#f0f2f0', borderBottom: '1px solid #ddd', fontSize: 11, fontWeight: 700, color: '#555' }}>
               SELECT CABLE PROFILE
