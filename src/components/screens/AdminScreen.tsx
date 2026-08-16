@@ -207,7 +207,7 @@ export const AdminScreen: React.FC = () => {
             <div style={{ fontSize: 11, fontWeight: 700, color: '#555', marginBottom: 6, textTransform: 'uppercase' }}>
               Seçili Test Planı (Kablo Tipi)
             </div>
-            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
               {CABLE_PROFILES.map(p => {
                 const active = activeCable === p.id;
                 return (
@@ -215,15 +215,18 @@ export const AdminScreen: React.FC = () => {
                     key={p.id}
                     onClick={() => setActiveCable(p.id as CableTypeCategory)}
                     style={{
-                      padding: '5px 8px', borderRadius: 4,
-                      background: active ? '#e8f5e9' : '#f0f0f0',
-                      border: `1.5 solid ${active ? '#3d8b40' : '#ccc'}`,
-                      color: active ? '#2e7d32' : '#555', fontWeight: 700, fontSize: 10,
-                      cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4,
+                      padding: '6px 4px', borderRadius: 4,
+                      background: active ? '#e8f5e9' : '#fff',
+                      border: `1.5px solid ${active ? '#3d8b40' : '#ccc'}`,
+                      color: active ? '#2e7d32' : '#555', fontWeight: 700, fontSize: 9,
+                      cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                      boxShadow: active ? '0 1px 4px rgba(61,139,64,0.2)' : 'none',
                     }}
                   >
                     <CableIcon type={p.id as CableTypeCategory} />
-                    {p.id.replace(/_/g, ' ')}
+                    <span style={{ fontSize: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                      {p.id.replace(/_/g, ' ')}
+                    </span>
                   </button>
                 );
               })}
