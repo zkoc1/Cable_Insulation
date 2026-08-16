@@ -385,18 +385,21 @@ export const MeasurementScreen: React.FC = () => {
               </select>
             </div>
 
-            {/* Kablo Çeşitleri Box matching Şekil 1 */}
+            {/* Kablo Çeşitleri Box matching Şekil 1 (All 8 cables fit in 4x2 grid) */}
             <fieldset style={{
-              border: '1.5px solid #333', borderRadius: 4, padding: 12, flex: 1,
+              border: '1.5px solid #333', borderRadius: 4, padding: '8px 10px',
               display: 'flex', flexDirection: 'column', background: '#ffffff',
+              height: 240, overflow: 'hidden',
             }}>
               <legend style={{ padding: '0 6px', fontSize: 13, fontWeight: 700, color: '#333' }}>
                 Kablo Çeşitleri
               </legend>
 
               <div style={{
-                display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: 10, overflowY: 'auto', flex: 1, padding: '6px 0',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gridTemplateRows: 'repeat(2, 1fr)',
+                gap: 8, flex: 1, padding: '4px 0', overflow: 'hidden',
               }}>
                 {CABLE_PROFILES.map(p => {
                   const active = selectedCable === p.id;
@@ -406,16 +409,16 @@ export const MeasurementScreen: React.FC = () => {
                       onClick={() => handleSelectCable(p.id as CableTypeCategory)}
                       style={{
                         background: active ? '#e8f5e9' : '#fff',
-                        border: `2px solid ${active ? '#3d8b40' : '#444'}`,
-                        borderRadius: 4, padding: '10px 4px',
+                        border: `1.5px solid ${active ? '#3d8b40' : '#444'}`,
+                        borderRadius: 4, padding: '4px 2px',
                         display: 'flex', flexDirection: 'column',
-                        alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer',
+                        alignItems: 'center', justifyContent: 'center', gap: 2, cursor: 'pointer',
                         boxShadow: active ? '0 2px 6px rgba(61,139,64,0.2)' : 'none',
-                        aspectRatio: '1',
+                        height: '100%', width: '100%',
                       }}
                     >
                       <CableIcon type={p.id as CableTypeCategory} />
-                      <span style={{ fontSize: 9, fontWeight: 700, textAlign: 'center', color: active ? '#2e7d32' : '#333' }}>
+                      <span style={{ fontSize: 8.5, fontWeight: 700, textAlign: 'center', color: active ? '#2e7d32' : '#333', lineHeight: 1.1 }}>
                         {p.id.replace(/_/g, ' ')}
                       </span>
                     </button>
