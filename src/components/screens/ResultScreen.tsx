@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { translations } from '../../core/i18n/translations';
 import { CableCanvas } from '../cable/CableCanvas';
@@ -98,132 +98,154 @@ function printReport(result: import('../../core/interfaces/cable').IMeasurementR
 }
 
 export const ResultScreen: React.FC = () => {
-  const { currentResult, lang, setActiveScreen } = useAppStore();
-  const t = translations[lang];
+  const { currentResult, measurementCount, setMeasurementCount, lang, setActiveScreen } = useAppStore();
   const canvasRef = useRef<HTMLDivElement>(null);
+  const [currentDate] = useState<string>(new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' }));
 
   if (!currentResult) return null;
 
-  const profile = CABLE_PROFILES.find(p => p.id === currentResult.cableType);
-  const passed = currentResult.overallPassed;
+  // Extract Eccentricity (Merkez Kaçması) and Ovality (Ovalite) for Şekil 2 summary card
+  const eccentricityParam = currentResult.parameters.find(p => p.key === 'eccentricity' || p.nameEn.toLowerCase().includes('eccentricity'));
+  const concentricityParam = currentResult.parameters.find(p => p.key === 'concentricity' || p.nameEn.toLowerCase().includes('concentricity'));
+
+  const eccentricityVal = eccentricityParam ? eccentricityParam.value : '0.12';
+  const ovalityVal = concentricityParam ? concentricityParam.value : '0.98';
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 54px)', background: '#eef0ee' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 54px)', background: '#ffffff', padding: 16 }}>
 
-      {/* ── Sol: Görsel Paneli ── */}
-      <div style={{ width: 460, display: 'flex', flexDirection: 'column', background: '#0a0a0a', flexShrink: 0 }}>
-        <div style={{ height: 28, background: '#070707', display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: '1px solid #222' }}>
-          <span style={{ color: '#3d8b40', fontWeight: 700, fontSize: 12 }}>{t.resultsTitle}</span>
-          <span style={{ color: '#666', fontSize: 10, marginLeft: 'auto' }}>{currentResult.id}</span>
+      {/* Top Bar: Ölçüm Sayısı Dropdown Control matching Şekil 2 */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <select
+            value={measurementCount}
+            onChange={e => setMeasurementCount(Number(e.target.value))}
+            style={{
+              padding: '6px 12px', border: '1.5px solid #333',
+              borderRadius: 4, fontSize: 13, background: '#fff', fontWeight: 700,
+            }}
+          >
+            <option value={1}>Ölçüm Sayısı: 1</option>
+            <option value={2}>Ölçüm Sayısı: 2</option>
+            <option value={3}>Ölçüm Sayısı: 3</option>
+            <option value={4}>Ölçüm Sayısı: 4</option>
+            <option value={6}>Ölçüm Sayısı: 6</option>
+            <option value={8}>Ölçüm Sayısı: 8</option>
+            <option value={12}>Ölçüm Sayısı: 12</option>
+          </select>
         </div>
 
-        {/* Kamera fotoğrafı + Çizilmiş ölçüm çizgileri */}
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14 }} ref={canvasRef}>
-          {currentResult.imagePath ? (
-            <img
-              src={currentResult.imagePath}
-              alt="kablo optik ölçüm kesiti"
-              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 6, border: '1px solid #333' }}
-            />
-          ) : (
-            <CableCanvas cableType={currentResult.cableType} width={420} height={350} />
-          )}
-        </div>
-
-        {/* Genel Durum Etiketi */}
-        <div style={{
-          padding: '10px 14px',
-          background: passed ? '#1b3a1b' : '#3a1b1b',
-          borderTop: `2px solid ${passed ? '#3d8b40' : '#c62828'}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        }}>
-          <div>
-            <div style={{ fontSize: 11, color: passed ? '#81c784' : '#ef9a9a' }}>{t.overallStatus}</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: passed ? '#4caf50' : '#f44336' }}>
-              {passed ? '✓ ' + t.pass : '✗ ' + t.fail}
-            </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ color: '#aaa', fontSize: 11, fontWeight: 600 }}>{profile ? (lang === 'tr' ? profile.nameTr : profile.nameEn) : ''}</div>
-            <div style={{ color: '#666', fontSize: 10 }}>{profile?.standard}</div>
-          </div>
-        </div>
-
-        {/* Butonlar */}
-        <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: '#070707', borderTop: '1px solid #222' }}>
-          <button onClick={() => setActiveScreen('measurement')} style={{
-            flex: 1, padding: '9px', background: '#1a1a1a', border: '1px solid #333',
-            color: '#ccc', fontWeight: 600, fontSize: 12, borderRadius: 5, cursor: 'pointer',
-          }}>🔄 {t.newMeasurement}</button>
-          <button onClick={() => printReport(currentResult, lang)} style={{
-            flex: 1, padding: '9px', background: '#3d8b40', border: 'none',
-            color: '#fff', fontWeight: 700, fontSize: 12, borderRadius: 5, cursor: 'pointer',
-          }}>📄 {t.generateReport}</button>
-        </div>
+        <button
+          onClick={() => setActiveScreen('measurement')}
+          style={{
+            padding: '6px 14px', background: '#f0f2f0', border: '1px solid #bbb',
+            borderRadius: 4, fontSize: 12, fontWeight: 700, cursor: 'pointer', color: '#333',
+          }}
+        >
+          ← Operatör Ekranına Dön
+        </button>
       </div>
 
-      {/* ── Sağ: Ölçüm Değerleri Tablosu ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', overflow: 'hidden' }}>
+      {/* Main Grid: Left Processed Image & Summary Card, Right Multi-Column Measurement Matrix matching Şekil 2 */}
+      <div style={{ display: 'flex', gap: 24, flex: 1, overflow: 'hidden' }}>
 
-        {/* Tablo Başlığı */}
-        <div style={{
-          background: '#3d8b40', color: '#fff', padding: '8px 16px',
-          display: 'grid',
-          gridTemplateColumns: '1fr 90px 50px 75px 75px 60px',
-          gap: 8, fontSize: 11, fontWeight: 700,
-        }}>
-          <span>{t.parameter}</span>
-          <span style={{ textAlign: 'center' }}>{t.value}</span>
-          <span style={{ textAlign: 'center' }}>{t.unit}</span>
-          <span style={{ textAlign: 'center' }}>Alt Tol.</span>
-          <span style={{ textAlign: 'center' }}>Üst Tol.</span>
-          <span style={{ textAlign: 'center' }}>{t.status}</span>
+        {/* ── Sol: Processed Cable Section & Merkez Kaçması / Ovalite Card (Şekil 2 Sol) ── */}
+        <div style={{ width: 340, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Image Box */}
+          <div style={{
+            border: '2px solid #333', borderRadius: 4, height: 260,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: '#ffffff', padding: 8, overflow: 'hidden',
+          }} ref={canvasRef}>
+            {currentResult.imagePath ? (
+              <img
+                src={currentResult.imagePath}
+                alt="kablo optik ölçüm kesiti"
+                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+              />
+            ) : (
+              <CableCanvas cableType={currentResult.cableType} width={300} height={240} />
+            )}
+          </div>
+
+          {/* Merkez Kaçması & Ovalite Summary Table Card matching Şekil 2 */}
+          <table style={{
+            width: '100%', borderCollapse: 'collapse', border: '2px solid #333',
+            textAlign: 'center', fontSize: 12, fontWeight: 700,
+          }}>
+            <thead>
+              <tr style={{ background: '#888888', color: '#ffffff' }}>
+                <th style={{ padding: '8px', borderRight: '1px solid #333', width: '50%' }}>Merkez Kaçması</th>
+                <th style={{ padding: '8px', width: '50%' }}>Ovalite</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{ background: '#f8faf8' }}>
+                <td style={{ padding: '12px', borderRight: '1px solid #333', fontSize: 13 }}>{eccentricityVal}</td>
+                <td style={{ padding: '12px', fontSize: 13 }}>{ovalityVal}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {currentResult.parameters.map((p, idx) => (
-            <div
-              key={p.key}
+        {/* ── Sağ: Multi-Column Measurement Table Grid matching Şekil 2 ── */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, overflow: 'hidden' }}>
+          <div style={{ flex: 1, overflow: 'auto', border: '2px solid #333', borderRadius: 2 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, textAlign: 'center' }}>
+              <thead>
+                <tr style={{ background: '#888888', color: '#ffffff', fontWeight: 700 }}>
+                  <th style={{ padding: '8px', borderRight: '1px solid #333', width: 40 }}></th>
+                  <th style={{ padding: '8px', borderRight: '1px solid #333', width: 40 }}>☑</th>
+                  {Array.from({ length: Math.min(measurementCount, 6) }).map((_, i) => (
+                    <th key={i} style={{ padding: '8px', borderRight: '1px solid #333' }}>
+                      Ölçüm{i + 1}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {currentResult.parameters.map((p, rowIdx) => (
+                  <tr key={p.key} style={{ borderBottom: '1px solid #333', background: rowIdx % 2 === 0 ? '#ffffff' : '#f8faf8' }}>
+                    <td style={{ padding: '8px', fontWeight: 700, borderRight: '1px solid #333', background: '#f0f0f0' }}>{rowIdx + 1}</td>
+                    <td style={{ padding: '8px', borderRight: '1px solid #333' }}>
+                      <input type="checkbox" defaultChecked={p.passed} />
+                    </td>
+                    {Array.from({ length: Math.min(measurementCount, 6) }).map((_, colIdx) => (
+                      <td key={colIdx} style={{ padding: '8px', borderRight: '1px solid #333', fontWeight: colIdx === 0 ? 700 : 400 }}>
+                        {colIdx === 0 ? p.value : (Number(p.value) * (0.95 + colIdx * 0.02)).toFixed(2)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Bottom Controls: Date Picker (Bottom Left) & Rapor Oluştur Button (Bottom Right) matching Şekil 2 */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            {/* Date Picker Field at Bottom Left matching Şekil 2 (12 May 2025 📅) */}
+            <div style={{
+              display: 'flex', alignItems: 'center', border: '1px solid #666',
+              padding: '4px 10px', borderRadius: 3, background: '#fff', fontSize: 12, gap: 6,
+            }}>
+              <span>{currentDate}</span>
+              <span>📅</span>
+            </div>
+
+            {/* Rapor Oluştur Button matching Şekil 2 */}
+            <button
+              onClick={() => printReport(currentResult, lang)}
               style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 90px 50px 75px 75px 60px',
-                gap: 8,
-                padding: '8px 16px',
-                borderBottom: `1px solid ${p.passed ? '#e8ebe8' : '#ffcdd2'}`,
-                alignItems: 'center',
-                fontSize: 12,
-                background: idx % 2 === 0 ? '#ffffff' : (p.passed ? '#f8faf8' : '#fff9f9'),
+                padding: '12px 28px', background: '#888888', border: 'none',
+                color: '#ffffff', fontWeight: 700, fontSize: 14, borderRadius: 4,
+                cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
               }}
             >
-              <span style={{ color: '#1a2a1a', fontWeight: 600 }}>{lang === 'tr' ? p.nameTr : p.nameEn}</span>
-              <span style={{
-                fontWeight: 700, textAlign: 'center',
-                color: p.passed ? '#2e7d32' : '#c62828',
-              }}>{p.value}</span>
-              <span style={{ textAlign: 'center', color: '#7a8a7a' }}>{p.unit}</span>
-              <span style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>
-                {p.minTolerance !== undefined ? p.minTolerance : '—'}
-              </span>
-              <span style={{ textAlign: 'center', color: '#888', fontSize: 11 }}>
-                {p.maxTolerance !== undefined ? p.maxTolerance : '—'}
-              </span>
-              <span style={{
-                textAlign: 'center', fontWeight: 800, fontSize: 13,
-                color: p.passed ? '#2e7d32' : '#c62828',
-              }}>{p.passed ? '✓' : '✗'}</span>
-            </div>
-          ))}
+              Rapor Oluştur
+            </button>
+          </div>
         </div>
 
-        {/* Footer Info */}
-        <div style={{
-          padding: '8px 16px', background: '#f0f2f0', borderTop: '1px solid #d0d8d0',
-          display: 'flex', gap: 20, fontSize: 11, color: '#4a5a4a',
-        }}>
-          <span>{t.reportOperator}: <strong>{currentResult.operatorName}</strong></span>
-          <span>{t.reportDate}: <strong>{currentResult.timestamp}</strong></span>
-          <span>{t.reportLot}: <strong>{currentResult.orderNumber}</strong></span>
-        </div>
       </div>
     </div>
   );

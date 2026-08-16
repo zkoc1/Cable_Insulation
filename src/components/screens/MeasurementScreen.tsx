@@ -15,6 +15,7 @@ export const MeasurementScreen: React.FC = () => {
     session, lang,
     selectedCable, setSelectedCable,
     orderNumber, setOrderNumber,
+    measurementCount, setMeasurementCount,
     notes,
     setActiveScreen, setCurrentResult,
   } = useAppStore();
@@ -31,6 +32,7 @@ export const MeasurementScreen: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingPhase, setProcessingPhase] = useState<ProcessingPhase>('idle');
   const [processedResult, setProcessedResult] = useState<import('../../core/interfaces/cable').IMeasurementResult | null>(null);
+  const [currentDate] = useState<string>(new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' }));
 
   const selected = CABLE_PROFILES.find(p => p.id === selectedCable);
 
@@ -75,7 +77,7 @@ export const MeasurementScreen: React.FC = () => {
     }
   };
 
-  // Multi-Flash RGB Lighting Sequence & Image Processing (Photos 3, 4, 5)
+  // Multi-Flash RGB Lighting Sequence & Image Processing (Photos 3, 4, 5 & Şekil 1)
   const runImageProcessing = useCallback(async (targetCableType: CableTypeCategory) => {
     setIsProcessing(true);
     setProcessedResult(null);
@@ -95,17 +97,9 @@ export const MeasurementScreen: React.FC = () => {
       }
     }
 
-    // Step 2: Green Light Flash (350ms)
-    setTimeout(() => {
-      setProcessingPhase('green');
-    }, 350);
+    setTimeout(() => setProcessingPhase('green'), 350);
+    setTimeout(() => setProcessingPhase('blue'), 700);
 
-    // Step 3: Blue Light Flash (700ms)
-    setTimeout(() => {
-      setProcessingPhase('blue');
-    }, 700);
-
-    // Composite final colorized section with radial lines (Photo 3)
     const { imagePath, measurementData } = await MeasurementOverlayService.createCompositedSnapshot(
       rawFrame,
       targetCableType,
@@ -113,7 +107,6 @@ export const MeasurementScreen: React.FC = () => {
       480
     );
 
-    // Step 4: Completion (1050ms)
     setTimeout(() => {
       const result = MeasurementCalculationService.calculate(
         targetCableType,
@@ -150,7 +143,7 @@ export const MeasurementScreen: React.FC = () => {
   return (
     <div style={{ display: 'flex', height: 'calc(100vh - 54px)', background: '#eef0ee' }}>
 
-      {/* ── Sol: Cable Cross-Section Viewport (Images 3, 4, 5 Left Panel) ── */}
+      {/* ── Sol: Cable Cross-Section Viewport & Camera Controls (Şekil 1 Sol Panel) ── */}
       <div style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', background: '#ffffff', minWidth: 0, borderRight: '2px solid #ccc', position: 'relative' }}>
 
         {/* Viewport Header Bar + Geri (Back) Button */}
@@ -158,7 +151,6 @@ export const MeasurementScreen: React.FC = () => {
           height: 36, background: '#f0f2f0', display: 'flex',
           alignItems: 'center', padding: '0 14px', gap: 12, borderBottom: '1px solid #ddd',
         }}>
-          {/* ← Geri Button */}
           <button
             onClick={handleGoBack}
             style={{
@@ -176,7 +168,7 @@ export const MeasurementScreen: React.FC = () => {
             display: 'inline-block',
           }} />
           <span style={{ color: '#333', fontSize: 11, fontWeight: 700 }}>
-            {isProcessing ? `RGB FLASH LIGHT SCAN (${processingPhase.toUpperCase()})` : 'Measuring field M'}
+            {isProcessing ? `RGB FLASH LIGHT SCAN (${processingPhase.toUpperCase()})` : 'Kablo Yalıtım Kalınlığı Ölçüm Programı - Measuring field M'}
           </span>
           {camError && <span style={{ color: '#f55', fontSize: 11, marginLeft: 8 }}>⚠ {camError}</span>}
         </div>
@@ -186,7 +178,6 @@ export const MeasurementScreen: React.FC = () => {
           flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
           position: 'relative', overflow: 'hidden', background: '#ffffff', padding: 20,
         }}>
-          {/* Canlı Video Stream with Multi-Flash Lighting Filters (Photos 4, 5) */}
           <video
             ref={videoRef}
             autoPlay
@@ -204,7 +195,6 @@ export const MeasurementScreen: React.FC = () => {
           />
           <canvas ref={snapCanvas} style={{ display: 'none' }} />
 
-          {/* Colorized Processed Image with Radial Lines (Photo 3) */}
           {camState === 'snapshot' && snapshotData && (
             <img
               src={snapshotData}
@@ -213,59 +203,72 @@ export const MeasurementScreen: React.FC = () => {
             />
           )}
 
-          {/* Standby Viewport: Plain Blank White (Photo 2 Exactly) */}
           {camState === 'off' && !snapshotData && (
             <div style={{
               width: '100%', height: '100%', background: '#ffffff',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: '#bbb', fontSize: 13, border: '1px dashed #e0e0e0', borderRadius: 4,
             }}>
-              Kamera kapalı. Başlat veya profil seç.
+              Kamera kapalı. Fotoğraf al (📷) veya profil seç.
             </div>
           )}
         </div>
 
-        {/* Bottom Control Bar */}
+        {/* 3 Camera Control Buttons Below Viewport matching Şekil 1 (📷, ▶, ⏸) */}
         <div style={{
-          padding: '8px 16px', background: '#f0f2f0', borderTop: '1px solid #ddd',
-          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '12px 20px', background: '#ffffff', borderTop: '1px solid #eee',
+          display: 'flex', alignItems: 'center', gap: 14,
         }}>
-          {/* Play / Process Button */}
-          <button
-            onClick={() => runImageProcessing(selectedCable)}
-            disabled={isProcessing}
-            title="Run Image Processing"
-            style={{
-              width: 44, height: 44, borderRadius: 4,
-              background: isProcessing ? '#81c784' : '#4cae4f',
-              border: 'none', color: '#fff', fontSize: 20, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
-            }}
-          >▶</button>
-
-          {/* Camera Button */}
+          {/* 1. Fotoğraf Al / Kamera Butonu (📷) */}
           <button
             onClick={camState === 'off' ? startCamera : stopCamera}
-            title={camState === 'off' ? 'Kamerayı Aç' : 'Kamerayı Kapat'}
+            title="Fotoğraf Al / Kamera"
             style={{
-              width: 44, height: 44, borderRadius: 4,
-              background: camState === 'live' ? '#ef5350' : '#e0e0e0',
-              border: '1px solid #bbb', color: '#333', fontSize: 18, cursor: 'pointer',
+              width: 70, height: 50, borderRadius: 4,
+              background: '#ffffff', border: '2px solid #333',
+              color: '#333', fontSize: 24, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
             }}
           >📷</button>
 
-          <div style={{ fontSize: 11, color: '#555', fontWeight: 600, marginLeft: 10 }}>
+          {/* 2. Ölçüm Yap / Başlat Butonu (▶) */}
+          <button
+            onClick={() => runImageProcessing(selectedCable)}
+            disabled={isProcessing}
+            title="Ölçüm Yap / Başlat"
+            style={{
+              width: 70, height: 50, borderRadius: 4,
+              background: isProcessing ? '#81c784' : '#ffffff',
+              border: '2px solid #333', color: '#333', fontSize: 24, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            }}
+          >▶</button>
+
+          {/* 3. Durdur / Duraklat Butonu (⏸) */}
+          <button
+            onClick={stopCamera}
+            title="Durdur / Duraklat"
+            style={{
+              width: 70, height: 50, borderRadius: 4,
+              background: '#ffffff', border: '2px solid #333',
+              color: '#333', fontSize: 24, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            }}
+          >⏸</button>
+
+          <div style={{ fontSize: 12, color: '#444', fontWeight: 600, marginLeft: 10 }}>
             {selected ? (lang === 'tr' ? selected.nameTr : selected.nameEn) : ''} ({selected?.standard})
           </div>
         </div>
       </div>
 
-      {/* ── Sağ: VELOX Parameter / Results Panel (Photos 3, 4, 5 Right Panel) ── */}
-      <div style={{ width: 440, background: '#f4f6f4', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* ── Sağ: Parameter & Profile Selection Grid (Şekil 1 Sağ Panel) ── */}
+      <div style={{ width: 460, background: '#f4f6f4', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
 
-        {/* 1. STATE: PROCESSING ANIMATION (Photo 4 & 5 Right Side) */}
+        {/* 1. STATE: PROCESSING ANIMATION */}
         {isProcessing ? (
           <div style={{
             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -284,24 +287,19 @@ export const MeasurementScreen: React.FC = () => {
           </div>
         ) : processedResult ? (
 
-          /* 2. STATE: PROCESSED RESULTS & TEST PLAN TABLE (Photo 3 Right Side) */
+          /* 2. STATE: PROCESSED RESULTS & TEST PLAN TABLE */
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' }}>
-
-            {/* Test plan header bar */}
             <div style={{
               background: '#3d8b40', color: '#fff', padding: '8px 12px',
               fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             }}>
-              <span>RESULTS & TEST PLAN</span>
+              <span>RESULTS & TEST PLAN (Ölçüm Sayısı: {measurementCount})</span>
               <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: 3 }}>
                 PoS Name: 0 - Coat
               </span>
             </div>
 
-            {/* Results Table matching Photo 3 Right Panel */}
             <div style={{ flex: 1, overflowY: 'auto' }}>
-
-              {/* Layer 01 - Outerlayer */}
               <div style={{ background: '#e0e0e0', padding: '5px 10px', fontSize: 11, fontWeight: 700, color: '#333' }}>
                 ▲ Lay. N.: 01 - Outerlayer
               </div>
@@ -313,7 +311,6 @@ export const MeasurementScreen: React.FC = () => {
                 <span style={{ fontWeight: 700 }}>54.684 mm²</span>
               </div>
 
-              {/* Layer 03 - Isolation_M */}
               <div style={{ background: '#e0e0e0', padding: '5px 10px', fontSize: 11, fontWeight: 700, color: '#333' }}>
                 ▲ Lay. N.: 03 - Isolation_M
               </div>
@@ -334,7 +331,6 @@ export const MeasurementScreen: React.FC = () => {
                 </div>
               ))}
 
-              {/* Layer 05 - Innerlayer */}
               <div style={{ background: '#e0e0e0', padding: '5px 10px', fontSize: 11, fontWeight: 700, color: '#333' }}>
                 ▲ Lay. N.: 05 - Innerlayer
               </div>
@@ -347,7 +343,6 @@ export const MeasurementScreen: React.FC = () => {
               </div>
             </div>
 
-            {/* Bottom Proceed to Report Button */}
             <div style={{ padding: 12, background: '#f0f2f0', borderTop: '1px solid #ddd', display: 'flex', gap: 10 }}>
               <button
                 onClick={handleProceedToReport}
@@ -362,61 +357,93 @@ export const MeasurementScreen: React.FC = () => {
           </div>
         ) : (
 
-          /* 3. STATE: CABLE TYPE SELECTION GRID */
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' }}>
-            <div style={{ padding: '8px 12px', background: '#f0f2f0', borderBottom: '1px solid #ddd', fontSize: 11, fontWeight: 700, color: '#555' }}>
-              SELECT CABLE PROFILE
-            </div>
+          /* 3. STATE: OPERATÖR BİLGİ GİRİŞ EKRANI (Şekil 1 Sağ Side) */
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 16, background: '#ffffff' }}>
 
-            <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 8, padding: 12, overflowY: 'auto', flex: 1, background: '#f4f6f4',
-            }}>
-              {CABLE_PROFILES.map(p => {
-                const active = selectedCable === p.id;
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => handleSelectCable(p.id as CableTypeCategory)}
-                    style={{
-                      background: active ? '#e8f5e9' : '#fff',
-                      border: `2px solid ${active ? '#3d8b40' : '#ccc'}`,
-                      borderRadius: 6, padding: '10px 4px',
-                      display: 'flex', flexDirection: 'column',
-                      alignItems: 'center', gap: 6, cursor: 'pointer',
-                      boxShadow: active ? '0 2px 6px rgba(61,139,64,0.2)' : 'none',
-                    }}
-                  >
-                    <CableIcon type={p.id as CableTypeCategory} />
-                    <span style={{ fontSize: 9, fontWeight: 700, textAlign: 'center', color: active ? '#2e7d32' : '#444' }}>
-                      {p.id.replace(/_/g, ' ')}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Inputs & Measurement Start */}
-            <div style={{ padding: 12, background: '#f8faf8', borderTop: '1px solid #ddd', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div>
-                <label style={{ fontSize: 10, fontWeight: 600, color: '#555' }}>{t.orderNumber}</label>
-                <input
-                  type="text"
-                  value={orderNumber}
-                  onChange={e => setOrderNumber(e.target.value)}
-                  style={{ width: '100%', padding: '5px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 11 }}
-                />
-              </div>
-
-              <button
-                onClick={() => runImageProcessing(selectedCable)}
+            {/* Ölçüm Sayısı Dropdown Control matching Şekil 1 */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 13, fontWeight: 700, color: '#333', display: 'block', marginBottom: 6 }}>
+                Ölçüm Sayısı
+              </label>
+              <select
+                value={measurementCount}
+                onChange={e => setMeasurementCount(Number(e.target.value))}
                 style={{
-                  padding: '10px', background: '#3d8b40', border: 'none', borderRadius: 5,
-                  color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                  width: 180, padding: '6px 12px', border: '1.5px solid #333',
+                  borderRadius: 4, fontSize: 13, background: '#fff', fontWeight: 600,
                 }}
               >
-                ▶ PROCESS CABLE SECTION
-              </button>
+                <option value={1}>Ölçüm Sayısı: 1</option>
+                <option value={2}>Ölçüm Sayısı: 2</option>
+                <option value={3}>Ölçüm Sayısı: 3</option>
+                <option value={4}>Ölçüm Sayısı: 4</option>
+                <option value={6}>Ölçüm Sayısı: 6</option>
+                <option value={8}>Ölçüm Sayısı: 8</option>
+                <option value={12}>Ölçüm Sayısı: 12</option>
+                <option value={16}>Ölçüm Sayısı: 16</option>
+                <option value={24}>Ölçüm Sayısı: 24</option>
+              </select>
+            </div>
+
+            {/* Kablo Çeşitleri Box matching Şekil 1 */}
+            <fieldset style={{
+              border: '1.5px solid #333', borderRadius: 4, padding: 12, flex: 1,
+              display: 'flex', flexDirection: 'column', background: '#ffffff',
+            }}>
+              <legend style={{ padding: '0 6px', fontSize: 13, fontWeight: 700, color: '#333' }}>
+                Kablo Çeşitleri
+              </legend>
+
+              <div style={{
+                display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: 10, overflowY: 'auto', flex: 1, padding: '6px 0',
+              }}>
+                {CABLE_PROFILES.map(p => {
+                  const active = selectedCable === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => handleSelectCable(p.id as CableTypeCategory)}
+                      style={{
+                        background: active ? '#e8f5e9' : '#fff',
+                        border: `2px solid ${active ? '#3d8b40' : '#444'}`,
+                        borderRadius: 4, padding: '10px 4px',
+                        display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer',
+                        boxShadow: active ? '0 2px 6px rgba(61,139,64,0.2)' : 'none',
+                        aspectRatio: '1',
+                      }}
+                    >
+                      <CableIcon type={p.id as CableTypeCategory} />
+                      <span style={{ fontSize: 9, fontWeight: 700, textAlign: 'center', color: active ? '#2e7d32' : '#333' }}>
+                        {p.id.replace(/_/g, ' ')}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+
+            {/* Order Number Input */}
+            <div style={{ marginTop: 12 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#555' }}>{t.orderNumber}</label>
+              <input
+                type="text"
+                value={orderNumber}
+                onChange={e => setOrderNumber(e.target.value)}
+                style={{ width: '100%', padding: '6px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 12 }}
+              />
+            </div>
+
+            {/* Date Picker Field at Bottom Right matching Şekil 1 (12 May 2025 📅) */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', border: '1px solid #666',
+                padding: '4px 10px', borderRadius: 3, background: '#fff', fontSize: 12, gap: 6,
+              }}>
+                <span>{currentDate}</span>
+                <span>📅</span>
+              </div>
             </div>
           </div>
         )}
