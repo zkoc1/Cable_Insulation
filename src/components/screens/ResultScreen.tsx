@@ -65,7 +65,7 @@ function printReport(result: import('../../core/interfaces/cable').IMeasurementR
       <div class="status-box">${result.overallPassed ? '✓ ' + t.pass : '✗ ' + t.fail} — ${t.overallStatus}</div>
       <div style="margin-top: 14px; font-size: 11px; color: #555; line-height: 1.6;">
         <strong>Ölçüm Yöntemi:</strong> Optik Kamera & Lazer Taraması<br/>
-        <strong>Standart Uyum:</strong> TS EN 60811-201 / EK_2<br/>
+        <strong>Standart Uyum:</strong> TS EN 60811-201<br/>
         <strong>Operatör:</strong> ${result.operatorName}
       </div>
     </div>

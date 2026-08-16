@@ -14,8 +14,8 @@ export const CABLE_PROFILES: ICableProfile[] = [
   },
   {
     id: CableTypeCategoryEnum.TESISAT_SINGLE_COLOR,
-    nameTr: 'Tesisat - Tek Damarlı Renkli',
-    nameEn: 'Single Core Colored Installation',
+    nameTr: 'Tesisat - Tek Damarlı (Single Core)',
+    nameEn: 'Single Core Installation Cable',
     standard: 'TS EN 50525-1',
     descriptionTr: 'Sarı-Yeşil renk oranlı (>=%30) ve tek damarlı tesisat kablosu.',
     descriptionEn: 'Yellow-Green color ratio (>=30%) single core installation cable.',

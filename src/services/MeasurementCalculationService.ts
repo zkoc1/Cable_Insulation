@@ -95,8 +95,11 @@ export class MeasurementCalculationService {
         unit = 'mm';
         maxTol = cableType === 'XLPE_HV' ? 5.0 : 1.2;
       } else if (lowerLabel.includes('çap') || lowerLabel.includes('inner') || lowerLabel.includes('outer')) {
-        calculatedValue = lowerLabel.includes('iç') ? rand(2.5, 0.3) : rand(3.8, 0.4);
+        const isInner = lowerLabel.includes('iç') || lowerLabel.includes('inner');
+        calculatedValue = isInner ? rand(2.5, 0.3) : rand(3.8, 0.4);
         unit = 'mm';
+        minTol = isInner ? 2.0 : 3.0;
+        maxTol = isInner ? 3.5 : 5.0;
       } else if (lowerLabel.includes('çıkıntı')) {
         calculatedValue = lowerLabel.includes('mesafe') ? rand(22.0, 2.0) : rand(3.5, 0.4);
         unit = 'mm';
