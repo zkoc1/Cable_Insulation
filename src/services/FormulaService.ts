@@ -142,11 +142,14 @@ export const DEFAULT_FORMULAS: Record<string, Formula[]> = {
   ],
   SEKTOR: [
     EK2_MASTER_FORMULA_CATALOG[2].formulas[0], // wall_tmin
+    EK2_MASTER_FORMULA_CATALOG[2].formulas[1], // wall_tmax
     EK2_MASTER_FORMULA_CATALOG[4].formulas[1], // eccentricity
+    EK2_MASTER_FORMULA_CATALOG[4].formulas[0], // centricity
+    EK2_MASTER_FORMULA_CATALOG[3].formulas[0], // area_real
   ],
 };
 
-const STORAGE_KEY = 'cable_formulas_v3';
+const STORAGE_KEY = 'cable_formulas_v4';
 
 export class FormulaService {
 
